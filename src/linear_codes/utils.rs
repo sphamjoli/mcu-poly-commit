@@ -6,7 +6,7 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 #[cfg(not(feature = "std"))]
 use ark_std::{string::ToString, vec::Vec};
 
-#[cfg(all(not(feature = "std"), target_arch = "aarch64"))]
+#[cfg(not(feature = "std"))]
 use num_traits::Float;
 
 #[cfg(test)]

@@ -2,7 +2,7 @@ use ark_ff::Field;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 #[cfg(all(not(feature = "std")))]
 use ark_std::vec::Vec;
-#[cfg(all(not(feature = "std"), target_arch = "aarch64"))]
+#[cfg(not(feature = "std"))]
 use num_traits::Float;
 #[cfg(feature = "parallel")]
 use rayon::{
