@@ -7,6 +7,9 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::{string::ToString, vec::Vec};
 
 #[cfg(not(feature = "std"))]
+// Newer toolchains resolve these via core float maths; older no_std ones
+// still need the trait, so keep the import and allow the lint here.
+#[allow(unused_imports)]
 use num_traits::Float;
 
 #[cfg(test)]
