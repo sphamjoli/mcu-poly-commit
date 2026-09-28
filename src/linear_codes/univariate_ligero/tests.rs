@@ -11,6 +11,8 @@ use ark_crypto_primitives::{
 };
 use ark_ff::{Field, PrimeField};
 use ark_poly::{univariate::DensePolynomial, DenseUVPolynomial};
+#[cfg(not(feature = "std"))]
+use ark_std::{string::ToString, vec::Vec};
 use ark_std::{test_rng, UniformRand};
 use blake2::Blake2s256;
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
@@ -93,7 +95,7 @@ fn test_construction() {
     );
 
     let mut test_sponge = test_sponge::<Fr>();
-    let (c, rands) = LigeroPCS::commit(&ck, std::slice::from_ref(&labeled_poly), None).unwrap();
+    let (c, rands) = LigeroPCS::commit(&ck, ark_std::slice::from_ref(&labeled_poly), None).unwrap();
 
     let point = Fr::rand(rand_chacha);
 

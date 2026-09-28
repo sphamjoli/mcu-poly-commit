@@ -16,6 +16,22 @@ extern crate derivative;
 #[macro_use]
 extern crate ark_std;
 
+// Without `std` there is no console, so these discard their output. They still
+// type-check the format string and use its arguments. `macro_rules!` is scoped
+// textually, so they must precede every module that calls them.
+#[cfg(not(feature = "std"))]
+macro_rules! eprintln {
+    ($($arg: tt)*) => {
+        let _ = format_args!($($arg)*);
+    };
+}
+#[cfg(all(test, not(feature = "std")))]
+macro_rules! println {
+    ($($arg: tt)*) => {
+        let _ = format_args!($($arg)*);
+    };
+}
+
 use ark_ff::{Field, PrimeField};
 pub use ark_poly::{DenseUVPolynomial, Polynomial};
 use ark_std::{
@@ -60,16 +76,6 @@ pub mod marlin;
 /// checker.
 pub mod optional_rng;
 
-#[cfg(not(feature = "std"))]
-macro_rules! eprintln {
-    () => {};
-    ($($arg: tt)*) => {};
-}
-#[cfg(all(test, not(feature = "std")))]
-macro_rules! println {
-    () => {};
-    ($($arg: tt)*) => {};
-}
 /// The core [\[KZG10\]][kzg] construction.
 ///
 /// [kzg]: http://cacr.uwaterloo.ca/techreports/2010/cacr2010-10.pdf

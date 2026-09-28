@@ -6,7 +6,8 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 #[cfg(not(feature = "std"))]
 use ark_std::{string::ToString, vec::Vec};
 
-#[cfg(not(feature = "std"))]
+// Called as `Float::f(x)` so that the `libm`-backed trait resolves the same
+// way whether or not `std` is linked into the build.
 use num_traits::Float;
 
 #[cfg(test)]
@@ -167,19 +168,19 @@ pub(crate) fn calculate_t<F: PrimeField>(
     let field_bits = F::MODULUS_BIT_SIZE as i32;
     let sec_param = sec_param as i32;
 
-    let residual = codeword_len as f64 / 2.0_f64.powi(field_bits);
-    let rhs = (2.0_f64.powi(-sec_param) - residual).log2();
+    let residual = codeword_len as f64 / Float::powi(2.0_f64, field_bits);
+    let rhs = Float::log2(Float::powi(2.0_f64, -sec_param) - residual);
     if !(rhs.is_normal()) {
         return Err(Error::InvalidParameters("For the given codeword length and the required security guarantee, the field is not big enough.".to_string()));
     }
     let nom = rhs - 1.0;
-    let denom = (1.0 - 0.5 * distance.0 as f64 / distance.1 as f64).log2();
+    let denom = Float::log2(1.0 - 0.5 * distance.0 as f64 / distance.1 as f64);
     if !(denom.is_normal()) {
         return Err(Error::InvalidParameters(
             "The distance is wrong".to_string(),
         ));
     }
-    let t = (nom / denom).ceil() as usize;
+    let t = Float::ceil(nom / denom) as usize;
     Ok(if t < codeword_len { t } else { codeword_len })
 }
 
@@ -269,6 +270,8 @@ pub(crate) mod tests {
         EvaluationDomain, Polynomial,
     };
     use ark_std::test_rng;
+    #[cfg(not(feature = "std"))]
+    use ark_std::vec::Vec;
     use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 
     #[test]

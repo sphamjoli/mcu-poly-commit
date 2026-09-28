@@ -13,6 +13,8 @@ use ark_crypto_primitives::{
 use ark_ff::{Field, PrimeField};
 use ark_poly::evaluations::multivariate::{MultilinearExtension, SparseMultilinearExtension};
 use ark_std::test_rng;
+#[cfg(not(feature = "std"))]
+use ark_std::{string::ToString, vec::Vec};
 use blake2::Blake2s256;
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 
@@ -95,7 +97,7 @@ fn test_construction() {
 
     let mut test_sponge = test_sponge::<Fr>();
     let (c, states) =
-        BrakedownPCS::<Fr>::commit(&ck, std::slice::from_ref(&labeled_poly), None).unwrap();
+        BrakedownPCS::<Fr>::commit(&ck, ark_std::slice::from_ref(&labeled_poly), None).unwrap();
 
     let point = rand_point(Some(num_vars), rand_chacha);
 

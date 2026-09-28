@@ -113,11 +113,11 @@ mod tests {
 
     #[test]
     fn t_123() {
-        assert!(
-            dbg!(Combinations::new(vec![1, 2, 3], 2)
+        assert_eq!(
+            Combinations::new(vec![1, 2, 3], 2)
                 .take(10)
-                .collect::<Vec<_>>())
-                == vec![vec![1, 2], vec![1, 3], vec![2, 3]]
+                .collect::<Vec<_>>(),
+            vec![vec![1, 2], vec![1, 3], vec![2, 3]]
         )
     }
 

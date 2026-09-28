@@ -2,7 +2,8 @@ use ark_ff::Field;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 #[cfg(not(feature = "std"))]
 use ark_std::vec::Vec;
-#[cfg(not(feature = "std"))]
+// Called as `Float::f(x)` so that the `libm`-backed trait resolves the same
+// way whether or not `std` is linked into the build.
 use num_traits::Float;
 #[cfg(feature = "parallel")]
 use rayon::{
@@ -28,7 +29,7 @@ pub(crate) fn ent(x: f64) -> f64 {
     if x == 0f64 || x == 1f64 {
         0f64
     } else {
-        -x * x.log2() - (1.0 - x) * (1.0 - x).log2()
+        -x * Float::log2(x) - (1.0 - x) * Float::log2(1.0 - x)
     }
 }
 
