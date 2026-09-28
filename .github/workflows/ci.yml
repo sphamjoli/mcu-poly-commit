@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+# Clippy and the unit tests are not gated yet. The unit tests import
+# ark_pcs_bench_templates, a dev-dependency the crates.io package does not
+# ship, so the test target does not compile. Clippy trips a deny-by-default
+# useless_attribute at src/lib.rs on top of upstream's warning backlog. Add
+# both as jobs once those are fixed.
+jobs:
+  fmt:
+    name: rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  host:
+    name: host (build, doc tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - name: Build (default features)
+        run: cargo build --locked
+      - name: Doc tests
+        run: cargo test --locked --doc
+
+  no-std:
+    name: no_std (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [thumbv7em-none-eabihf, riscv32imac-unknown-none-elf]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: ${{ matrix.target }}
+      - name: Cross-build the library without std
+        run: cargo build --locked --lib --no-default-features --target ${{ matrix.target }}
+
+  docs:
+    name: docs
+    runs-on: ubuntu-latest
+    # Not run with RUSTDOCFLAGS=-D warnings: upstream carries unresolved
+    # intra-doc links (paper citations such as [KZG10]) that rustdoc warns on.
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - name: Build docs
+        run: cargo doc --no-deps --locked
+
+  ci:
+    name: CI summary
+    if: ${{ always() }}
+    needs: [fmt, host, no-std, docs]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write summary
+        run: |
+          {
+            echo "## CI summary"
+            echo ""
+            echo "| Check | Result |"
+            echo "| ----- | ------ |"
+            echo "| rustfmt | ${{ needs.fmt.result }} |"
+            echo "| host | ${{ needs.host.result }} |"
+            echo "| no_std | ${{ needs.no-std.result }} |"
+            echo "| docs | ${{ needs.docs.result }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Fail if any required check did not pass
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "One or more required checks failed." >&2
+          exit 1

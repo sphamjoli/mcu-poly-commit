@@ -1,0 +1,16 @@
+# Gitleaks configuration for mcu-poly-commit.
+#
+# Extends the upstream default ruleset. The crate holds no key material; the
+# test vectors under src/ are fixed public parameters, not secrets. Add an
+# [allowlist] entry here if a future false positive needs one.
+
+title = "mcu-poly-commit gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Local build output, never committed but present if this scan ever runs after a build step or on a local dirty working tree — gitleaks dir walks the raw filesystem and does not honor .gitignore"
+paths = [
+  '''(^|/)target/''',
+]
