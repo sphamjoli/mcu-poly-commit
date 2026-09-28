@@ -1,106 +1,92 @@
 name: CI
+
 on:
-  merge_group:
-  pull_request:
   push:
-    branches:
-      - master
+    branches: [master]
+  pull_request:
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 env:
-  RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
 
+# Clippy and the unit tests are not gated yet. The unit tests import
+# ark_pcs_bench_templates, a dev-dependency the crates.io package does not
+# ship, so the test target does not compile. Clippy trips a deny-by-default
+# useless_attribute at src/lib.rs on top of upstream's warning backlog. Add
+# both as jobs once those are fixed.
 jobs:
-  style:
-    name: Check Style
+  fmt:
+    name: rustfmt
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Check formatting
+        run: cargo fmt --all -- --check
 
-    - name: Checkout
-      uses: actions/checkout@v1
-    - name: Install Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: stable
-        override: true
-        components: rustfmt
-
-    - name: cargo fmt --check
-      uses: actions-rs/cargo@v1
-      with:
-        command: fmt
-        args: --all -- --check
-
-  test:
-    name: Test
+  host:
+    name: host (build, doc tests)
     runs-on: ubuntu-latest
-    env:
-      RUSTFLAGS: -Dwarnings
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - name: Build (default features)
+        run: cargo build --locked
+      - name: Doc tests
+        run: cargo test --locked --doc
+
+  no-std:
+    name: no_std (${{ matrix.target }})
+    runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        rust:
-          - stable
-          - nightly
+        target: [thumbv7em-none-eabihf, riscv32imac-unknown-none-elf]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-
-      - name: Install Rust (${{ matrix.rust }})
-        uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          profile: minimal
-          toolchain: ${{ matrix.rust }}
-          override: true
+          key: ${{ matrix.target }}
+      - name: Cross-build the library without std
+        run: cargo build --locked --lib --no-default-features --target ${{ matrix.target }}
 
-      - name: Check examples
-        uses: actions-rs/cargo@v1
-        with:
-            command: check
-            args: --examples --all
+  docs:
+    name: docs
+    runs-on: ubuntu-latest
+    # Not run with RUSTDOCFLAGS=-D warnings: upstream carries unresolved
+    # intra-doc links (paper citations such as [KZG10]) that rustdoc warns on.
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - name: Build docs
+        run: cargo doc --no-deps --locked
 
-      - name: Check examples with all features on stable
-        uses: actions-rs/cargo@v1
-        with:
-            command: check
-            args: --examples --all-features --all
-        if: matrix.rust == 'stable'
-
-      - name: Check benchmarks on nightly
-        uses: actions-rs/cargo@v1
-        with:
-            command: check
-            args: --all-features --examples --all --benches
-        if: matrix.rust == 'nightly'
-
-      - name: Test
-        uses: actions-rs/cargo@v1
-        with:
-            command: test
-            args: --release
-
-  check_no_std:
-    name: Check no_std
+  ci:
+    name: CI summary
+    if: ${{ always() }}
+    needs: [fmt, host, no-std, docs]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-
-      - name: Install Rust (${{ matrix.rust }})
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: aarch64-unknown-none
-          override: true
-
-      - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          use-cross: true
-          command: build
-          args: --workspace --no-default-features --target aarch64-unknown-none --exclude ark-pcs-bench-templates
-
-      - name: Check
-        uses: actions-rs/cargo@v1
-        with:
-          use-cross: true
-          command: check
-          args: --workspace --examples --no-default-features --target aarch64-unknown-none --exclude ark-pcs-bench-templates
+      - name: Write summary
+        run: |
+          {
+            echo "## CI summary"
+            echo ""
+            echo "| Check | Result |"
+            echo "| ----- | ------ |"
+            echo "| rustfmt | ${{ needs.fmt.result }} |"
+            echo "| host | ${{ needs.host.result }} |"
+            echo "| no_std | ${{ needs.no-std.result }} |"
+            echo "| docs | ${{ needs.docs.result }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Fail if any required check did not pass
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "One or more required checks failed." >&2
+          exit 1

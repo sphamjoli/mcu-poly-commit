@@ -1,9 +1,10 @@
-target
-Cargo.lock
-.DS_Store
+# Rust build output
+target/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
 .idea
-*.iml
-*.ipynb_checkpoints
-*.pyc
-*.sage.py
-params
+.DS_Store
+*.suo
+*.sw?

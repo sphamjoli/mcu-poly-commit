@@ -1,0 +1,35 @@
+name: Bug report
+description: Report incorrect behaviour in the commitment schemes or no_std support.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: State the incorrect behaviour directly.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Exact commands, target, scheme, and feature set.
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: OS, rustc version, target triple, features.
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: Verbatim command output or verdicts.
+      render: shell

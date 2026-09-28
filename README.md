@@ -24,13 +24,13 @@ The library supports six polynomial commitment schemes.
 
 #### Inner-product-argument PC
 
-A polynomial commitment scheme based on the hardness of the discrete logarithm problem in prime-order groups. 
+A polynomial commitment scheme based on the hardness of the discrete logarithm problem in prime-order groups.
 The construction is described in the following paper.
 
 [pcd-acc]: https://ia.cr/2020/499
 
-[Proof-Carrying Data from Accumulation Schemes][pcd-acc]     
-Benedikt Bünz, Alessandro Chiesa, Pratyush Mishra, Nicholas Spooner     
+[Proof-Carrying Data from Accumulation Schemes][pcd-acc]  
+Benedikt Bünz, Alessandro Chiesa, Pratyush Mishra, Nicholas Spooner  
 TCC 2020
 
 #### Marlin variant of the Kate-Zaverucha-Goldberg PC
@@ -38,12 +38,12 @@ TCC 2020
 Polynomial commitment based on the Kate-Zaverucha-Goldberg construction, with degree enforcement, batching, and (optional) hiding property taken from Marlin.
 The construction is described in the following papers.
 
-[Marlin: Preprocessing zkSNARKs with Universal and Updatable SRS][marlin]     
+[Marlin: Preprocessing zkSNARKs with Universal and Updatable SRS][marlin]  
 Alessandro Chiesa, Yuncong Hu, Mary Maller, Pratyush Mishra, Noah Vesely, Nicholas Ward  
 EUROCRYPT 2020
 
-[Polynomial Commitments][kzg10]     
-Aniket Kate, Gregory M. Zaverucha, Ian Goldberg     
+[Polynomial Commitments][kzg10]  
+Aniket Kate, Gregory M. Zaverucha, Ian Goldberg  
 ASIACRYPT 2010
 
 #### Sonic/AuroraLight variant of the Kate-Zaverucha-Goldberg PC
@@ -51,40 +51,40 @@ ASIACRYPT 2010
 Polynomial commitment based on the Kate-Zaverucha-Goldberg construction, with degree enforcement and batching taken from Sonic (more precisely, their counterparts in AuroraLight that avoid negative G1 powers). The (optional) hiding property of the commitment scheme follows the approach described in Marlin.
 The construction is described in the following papers.
 
-[AuroraLight: Improved Prover Efficiency and SRS Size in a Sonic-Like System][aurora-light]     
-Ariel Gabizon     
+[AuroraLight: Improved Prover Efficiency and SRS Size in a Sonic-Like System][aurora-light]  
+Ariel Gabizon  
 ePrint, 2019
 
-[Sonic: Zero-Knowledge SNARKs from Linear-Size Universal and Updateable Structured Reference Strings][sonic]     
-Mary Maller, Sean Bowe, Markulf Kohlweiss, Sarah Meiklejohn     
+[Sonic: Zero-Knowledge SNARKs from Linear-Size Universal and Updateable Structured Reference Strings][sonic]  
+Mary Maller, Sean Bowe, Markulf Kohlweiss, Sarah Meiklejohn  
 CCS 2019
 
-[Marlin: Preprocessing zkSNARKs with Universal and Updatable SRS][marlin]     
+[Marlin: Preprocessing zkSNARKs with Universal and Updatable SRS][marlin]  
 Alessandro Chiesa, Yuncong Hu, Mary Maller, Pratyush Mishra, Noah Vesely, Nicholas Ward  
 EUROCRYPT 2020
 
-[Polynomial Commitments][kzg10]     
-Aniket Kate, Gregory M. Zaverucha, Ian Goldberg     
+[Polynomial Commitments][kzg10]  
+Aniket Kate, Gregory M. Zaverucha, Ian Goldberg  
 ASIACRYPT 2010
 
 #### Hyrax multilinear PC
 
 Multilinear polynomial commitment, introduced with Hyrax zkSNARK. Relies on Pedersen commitments and discrete logarithm problem for a hiding scheme. Construction details in the following paper.
 
-[Doubly-efficient zkSNARKs without trusted setup][hyrax]     
-Riad S. Wahby, Ioanna Tzialla, abhi shelat, Justin Thaler, Michael Walfish     
+[Doubly-efficient zkSNARKs without trusted setup][hyrax]  
+Riad S. Wahby, Ioanna Tzialla, abhi shelat, Justin Thaler, Michael Walfish  
 2018 IEEE Symposium on Security and Privacy
 
 #### Ligero and Brakedown
 
 Polynomial commitments based on linear codes and cryptographic hash functions. Construction details in the following papers.
 
-[Ligero: Lightweight Sublinear Arguments Without a Trusted Setup][ligero]    
-Scott Ames, Carmit Hazay, Yuval Ishai, Muthuramakrishnan Venkitasubramaniam    
+[Ligero: Lightweight Sublinear Arguments Without a Trusted Setup][ligero]  
+Scott Ames, Carmit Hazay, Yuval Ishai, Muthuramakrishnan Venkitasubramaniam  
 CCS 2017
 
-[Brakedown: Linear-time and field-agnostic SNARKs for R1CS][brakedown]    
-Alexander Golovnev, Jonathan Lee, Srinath Setty, Justin Thaler, Riad S. Wahby    
+[Brakedown: Linear-time and field-agnostic SNARKs for R1CS][brakedown]  
+Alexander Golovnev, Jonathan Lee, Srinath Setty, Justin Thaler, Riad S. Wahby  
 CRYPTO 2023
 
 #### Marlin variant of the Papamanthou-Shi-Tamassia multivariate PC
@@ -92,11 +92,11 @@ CRYPTO 2023
 Multivariate polynomial commitment based on the construction in the Papamanthou-Shi-Tamassia construction with batching and (optional) hiding property inspired by the univariate scheme in Marlin.
 The construction is described in the following paper.
 
-[Signatures of Correct Computation][pst]    
-Charalampos Papamanthou, Elaine Shi, Roberto Tamassia   
+[Signatures of Correct Computation][pst]  
+Charalampos Papamanthou, Elaine Shi, Roberto Tamassia  
 TCC 2013
 
-[Marlin: Preprocessing zkSNARKs with Universal and Updatable SRS][marlin]     
+[Marlin: Preprocessing zkSNARKs with Universal and Updatable SRS][marlin]  
 Alessandro Chiesa, Yuncong Hu, Mary Maller, Pratyush Mishra, Noah Vesely, Nicholas Ward  
 EUROCRYPT 2020
 
@@ -106,7 +106,7 @@ EUROCRYPT 2020
 
 
 - High-level:
-They handle degree bounds differently. 
+They handle degree bounds differently.
 MarlinPC uses shift powers only in G1 and requires two commitments to enforce degree bounds.
 SonicPC uses shift powers in G1 and G2 and requires only one commitment to enforce degree bounds.
 
@@ -115,9 +115,9 @@ SonicPC additionally computes some G2 elements for shift powers: `(1/\beta)^i H`
 
 - Commit:
 When there is no degree bound, both are the same.
-When there is a degree bound, MarlinPC is more expensive: it needs an additional commitment to commit to the shifted poynomial. 
+When there is a degree bound, MarlinPC is more expensive: it needs an additional commitment to commit to the shifted poynomial.
 
-- Open: 
+- Open:
 When there is no degree bound, both are the same.
 When there is a degree bound, MarlinPC is slightly more expensive: it requires more scalar field computations.
 
@@ -228,19 +228,19 @@ let mut test_sponge = test_sponge::<<Bls12_377 as Pairing>::ScalarField>();
 
 // 2. PolynomialCommitment::trim
 // Since the setup produced pp with a max degree of 16, and our poly is of degree 10, we can trim the SRS to tailor it to this example.
-let (ck, vk) = PCS::trim(&pp, degree, 2, Some(&[degree])).unwrap(); 
+let (ck, vk) = PCS::trim(&pp, degree, 2, Some(&[degree])).unwrap();
 
 // 3. PolynomialCommitment::commit
 // The prover commits to the polynomial using their committer key `ck`.
-let (comms, states) = PCS::commit(&ck, [&labeled_poly], Some(rng)).unwrap(); 
+let (comms, states) = PCS::commit(&ck, [&labeled_poly], Some(rng)).unwrap();
 
 // 4a. PolynomialCommitment::open
 // Opening proof at a single point.
-let proof_single = PCS::open(&ck, [&labeled_poly], &comms, &point_1, &mut (test_sponge.clone()), &states, None).unwrap(); 
+let proof_single = PCS::open(&ck, [&labeled_poly], &comms, &point_1, &mut (test_sponge.clone()), &states, None).unwrap();
 
 // 5a. PolynomialCommitment::check
 // Verifying the proof at a single point, given the commitment, the point, the claimed evaluation, and the proof.
-assert!(PCS::check(&vk, &comms, &point_1, [secret_poly.evaluate(&point_1)], &proof_single, &mut (test_sponge.clone()), Some(rng)).unwrap()); 
+assert!(PCS::check(&vk, &comms, &point_1, [secret_poly.evaluate(&point_1)], &proof_single, &mut (test_sponge.clone()), Some(rng)).unwrap());
 
 let mut query_set = QuerySet::new();
 let mut values = Evaluations::new();
@@ -295,40 +295,40 @@ Unless you explicitly state otherwise, any contribution that you submit to this 
 
 ## Reference papers
 
-[Polynomial Commitments][kzg10]     
-Aniket Kate, Gregory M. Zaverucha, Ian Goldberg     
+[Polynomial Commitments][kzg10]  
+Aniket Kate, Gregory M. Zaverucha, Ian Goldberg  
 ASIACRYPT 2010
 
-[Sonic: Zero-Knowledge SNARKs from Linear-Size Universal and Updateable Structured Reference Strings][sonic]     
-Mary Maller, Sean Bowe, Markulf Kohlweiss, Sarah Meiklejohn     
+[Sonic: Zero-Knowledge SNARKs from Linear-Size Universal and Updateable Structured Reference Strings][sonic]  
+Mary Maller, Sean Bowe, Markulf Kohlweiss, Sarah Meiklejohn  
 CCS 2019
 
-[AuroraLight: Improved Prover Efficiency and SRS Size in a Sonic-Like System][aurora-light]     
-Ariel Gabizon     
+[AuroraLight: Improved Prover Efficiency and SRS Size in a Sonic-Like System][aurora-light]  
+Ariel Gabizon  
 ePrint, 2019
 
-[Marlin: Preprocessing zkSNARKs with Universal and Updatable SRS][marlin]     
-Alessandro Chiesa, Yuncong Hu, Mary Maller, [Pratyush Mishra](https://www.github.com/pratyush), Noah Vesely, [Nicholas Ward](https://www.github.com/npwardberkeley)     
+[Marlin: Preprocessing zkSNARKs with Universal and Updatable SRS][marlin]  
+Alessandro Chiesa, Yuncong Hu, Mary Maller, [Pratyush Mishra](https://www.github.com/pratyush), Noah Vesely, [Nicholas Ward](https://www.github.com/npwardberkeley)  
 EUROCRYPT 2020
 
-[Proof-Carrying Data from Accumulation Schemes][pcd-acc]     
-Benedikt Bünz, Alessandro Chiesa, [Pratyush Mishra](https://www.github.com/pratyush), Nicholas Spooner     
+[Proof-Carrying Data from Accumulation Schemes][pcd-acc]  
+Benedikt Bünz, Alessandro Chiesa, [Pratyush Mishra](https://www.github.com/pratyush), Nicholas Spooner  
 TCC 2020
 
-[Signatures of Correct Computation][pst]    
-Charalampos Papamanthou, Elaine Shi, Roberto Tamassia   
+[Signatures of Correct Computation][pst]  
+Charalampos Papamanthou, Elaine Shi, Roberto Tamassia  
 TCC 2013
 
-[Ligero: Lightweight Sublinear Arguments Without a Trusted Setup][ligero]    
-Scott Ames, Carmit Hazay, Yuval Ishai, Muthuramakrishnan Venkitasubramaniam    
+[Ligero: Lightweight Sublinear Arguments Without a Trusted Setup][ligero]  
+Scott Ames, Carmit Hazay, Yuval Ishai, Muthuramakrishnan Venkitasubramaniam  
 CCS 2017
 
 [Doubly-efficient zkSNARKs without trusted setup][hyrax]
 Riad S. Wahby, Ioanna Tzialla, abhi shelat, Justin Thaler, Michael Walfish
 2018 IEEE Symposium on Security and Privacy
 
-[Brakedown: Linear-time and field-agnostic SNARKs for R1CS][brakedown]    
-Alexander Golovnev, Jonathan Lee, Srinath Setty, Justin Thaler, Riad S. Wahby    
+[Brakedown: Linear-time and field-agnostic SNARKs for R1CS][brakedown]  
+Alexander Golovnev, Jonathan Lee, Srinath Setty, Justin Thaler, Riad S. Wahby  
 CRYPTO 2023
 
 ## Acknowledgements

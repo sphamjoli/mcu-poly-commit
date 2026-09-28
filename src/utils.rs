@@ -2,7 +2,10 @@ use ark_ff::Field;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 #[cfg(all(not(feature = "std")))]
 use ark_std::vec::Vec;
-#[cfg(all(not(feature = "std"), target_arch = "aarch64"))]
+#[cfg(not(feature = "std"))]
+// Newer toolchains resolve these via core float maths; older no_std ones
+// still need the trait, so keep the import and allow the lint here.
+#[allow(unused_imports)]
 use num_traits::Float;
 #[cfg(feature = "parallel")]
 use rayon::{

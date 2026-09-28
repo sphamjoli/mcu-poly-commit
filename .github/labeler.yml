@@ -1,0 +1,21 @@
+"component: schemes":
+  - changed-files:
+    - any-glob-to-any-file: "src/**"
+
+"component: no-std":
+  - changed-files:
+    - any-glob-to-any-file:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+
+"component: docs":
+  - changed-files:
+    - any-glob-to-any-file: "**/*.md"
+
+"infra":
+  - changed-files:
+    - any-glob-to-any-file:
+      - ".github/**"
+      - ".pre-commit-config.yaml"
+      - ".gitleaks.toml"
