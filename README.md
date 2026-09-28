@@ -5,22 +5,26 @@
    <a href="https://github.com/arkworks-rs/poly-commit/blob/master/LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
 </p>
 
-## Changes in this fork
-
-This fork adapts `ark-poly-commit` 0.6.0 so that it builds for bare-metal microcontrollers. It starts from the crates.io 0.6.0 source as the root crate, restores the upstream `bench-templates` crate and benchmarks alongside it, and changes it as follows.
-
-- **Floating-point maths without `std`.** The linear-code schemes (Ligero and Brakedown) call `f64` methods such as `sqrt`, `log2`, `powi` and `ceil`, which `core` does not provide on Rust 1.97. Upstream enabled the `libm` fallback in `num-traits` only on `aarch64`. This fork enables it on every target and imports `num_traits::Float` in every `no_std` build.
-- **Supported targets.** Without default features, the library builds for `thumbv7em-none-eabihf` (Arm Cortex-M4F and M7F) and `riscv32imac-unknown-none-elf`. The toolchain is pinned to Rust 1.97.1 in `rust-toolchain.toml`, and `rust-version` is 1.97.
-- **`r1cs` feature.** ark-relations 0.6 renamed its `r1cs` module to `gr1cs`, so the upstream 0.6.0 `r1cs` feature does not compile. This fork imports from `gr1cs`.
-- **Tests and benchmarks.** The crates.io package omits the `ark-pcs-bench-templates` dev-dependency, so its unit tests do not compile. This fork adds `bench-templates` as a workspace member, which restores the 113 unit tests. The tests run both with and without the `std` feature; upstream's `no_std` test shims were declared after some of the modules that use them, so the Marlin tests did not compile without `std`. The float maths call `num_traits::Float` explicitly, so it resolves the same way whether or not `std` is linked, and the `no_std` test run executes the `libm` backend.
-- **Benchmarks.** The five upstream benchmarks live in `bench-templates/benches` behind its `bench` feature, which is the only part that needs `criterion`. Keeping `criterion` out of the test build stops it enabling `num-traits/std` there. Run them with `cargo bench -p ark-pcs-bench-templates --features bench`.
-- **Lint and documentation clean-up.** The code passes `cargo clippy -- -D warnings` for every target and feature set that CI checks, and `cargo doc` with warnings denied. Most changes are mechanical, such as removing `.clone()` on `Copy` types and needless references. Two private helpers gain named types (`PairingCheckAccumulator` in `sonic_pc` and `CombinedOpenings` in `marlin`). Public signatures from the arkworks API are unchanged, and each lint they trigger is allowed on that item alone, with the reason stated. The paper citations in the rustdoc now resolve.
-- **Dependencies.** The unused `merlin` dependency is removed. `cargo deny check advisories` runs in CI. It accepts two unmaintained-crate advisories, `derivative` (required by ark-crypto-primitives 0.6) and `paste` (benchmarks only), neither of which has a known vulnerability.
-- **Tooling.** The repository has a `.gitignore`, pre-commit hooks (whitespace, YAML, TOML and `cargo fmt --check`), and GitHub Actions for formatting, clippy, tests, benchmark builds, `no_std` builds, rustdoc and `cargo deny`. Pull requests are also checked for secrets, title format and labels.
+> [!WARNING]
+> This library is an academic prototype. Neither the upstream implementation nor the modifications made in this fork have been audited or received careful code review. The code is not ready for production use.
 
 `poly-commit` is a Rust library that implements *polynomial commitment schemes*. This library was initially developed as part of the [Marlin paper][marlin], and is released under the MIT License and the Apache v2 License (see [License](#license)).
 
-**WARNING:** This is an academic prototype, and in particular has not received careful code review. This implementation is NOT ready for production use.
+## Purpose of this fork
+
+This fork exists to support research on verifying zero-knowledge proofs on microcontrollers, where a device checks a proof locally instead of relying on a remote server. That work requires the polynomial commitment schemes in this library to run inside firmware, without an operating system or the Rust standard library. Version 0.6.0 of the upstream library cannot be used in that setting, and its published package cannot demonstrate its own correctness. The fork addresses both problems while leaving the cryptographic constructions as upstream defines them.
+
+### Reasons for the fork
+
+The first reason is portability. Two of the schemes, [Ligero][ligero] and [Brakedown][brakedown], choose their parameters with floating-point functions such as square roots and logarithms. On a standard computer these functions come from the Rust standard library, which microcontroller firmware does not have. Upstream provides a portable replacement on only one processor family, so the library fails to build for typical embedded targets. The fork uses the portable implementation on every target. As a result, the library builds for Arm Cortex-M4F and Cortex-M7F microcontrollers (`thumbv7em-none-eabihf`) and for 32-bit RISC-V microcontrollers (`riscv32imac-unknown-none-elf`).
+
+The second reason is verifiability. A cryptographic dependency used in research must be shown to behave correctly, yet the test suite in the published 0.6.0 package does not compile, because a supporting crate was omitted from the package. The optional constraint-system feature (`r1cs`) also fails to compile against the version of its own dependency that 0.6.0 requires. The fork restores the supporting crate and repairs the feature. The upstream test suite, adjusted only so that it compiles without the standard library, then passes in both configurations, so the configuration that the microcontrollers use is itself tested.
+
+The third reason is reproducibility. Results that depend on this library should be repeatable by others. The fork therefore pins the Rust toolchain (version 1.97.1), checks every change automatically for formatting, compiler warnings, documentation errors and known security advisories in its dependencies, and runs the tests in both configurations on every change.
+
+### Scope of the changes
+
+The fork does not change the algorithms, parameters or public interface of any scheme. Beyond the portability and packaging changes described above, the source changes correct compiler lint and documentation warnings. Two internal helpers in the Sonic and Marlin verifiers were reorganised for clarity without altering the computation they perform, and the upstream test suite confirms their behaviour. The commit history records each change and the reason for it.
 
 ## Overview
 
@@ -140,26 +144,24 @@ SonicPC is more expensive, as it checks a pairing equation of three pairing oper
 
 ## Build guide
 
-The library compiles on the `stable` toolchain of the Rust compiler. To install the latest version of Rust, first install `rustup` by following the instructions [here](https://rustup.rs/), or via your platform's package manager. Once `rustup` is installed, install the Rust toolchain by invoking:
-```bash
-rustup install stable
-```
+The library is built with Rust 1.97.1, which is pinned in `rust-toolchain.toml`. To install Rust, first install `rustup` by following the instructions [here](https://rustup.rs/), or via your platform's package manager. `rustup` then installs the pinned toolchain automatically the first time `cargo` runs in the repository.
 
 After that, use `cargo` (the standard Rust build tool) to build the library:
 ```bash
-git clone https://github.com/scipr-lab/poly-commit.git
-cd poly-commit
+git clone https://github.com/sphamjoli/mcu-poly-commit.git
+cd mcu-poly-commit
 cargo build --release
 ```
 
-This library comes with some unit and integration tests. Run these tests with:
+This library comes with some unit and integration tests. Run these tests with and without `std`:
 ```bash
-cargo test
+cargo test --workspace --all-features
+cargo test --workspace --no-default-features
 ```
 
-A benchmarking module is also provided for the `commit`, `open` and `verify` methods, as well as for computing the commitment and proof size. You can add a new benchmark for your scheme following the examples in the `pcs/benches` directory, or run the existing benchmarks with:
+A benchmarking module is also provided for the `commit`, `open` and `verify` methods, as well as for computing the commitment and proof size. You can add a new benchmark for your scheme following the examples in the `bench-templates/benches` directory, or run the existing benchmarks with:
 ```bash
-cargo bench
+cargo bench -p ark-pcs-bench-templates --features bench
 ```
 
 Lastly, this library is instrumented with profiling infrastructure that prints detailed traces of execution time. To enable this, compile with `cargo build --features print-trace`.
