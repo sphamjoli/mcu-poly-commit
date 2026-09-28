@@ -201,12 +201,15 @@ dependencies = [
 name = "ark-pcs-bench-templates"
 version = "0.6.0"
 dependencies = [
+ "ark-bn254",
  "ark-crypto-primitives",
+ "ark-ed-on-bls12-381",
  "ark-ff",
  "ark-poly",
  "ark-poly-commit",
  "ark-serialize",
  "ark-std",
+ "blake2",
  "criterion",
  "paste",
  "rand_chacha",

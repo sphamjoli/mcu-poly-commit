@@ -176,31 +176,6 @@ version = "0.2"
 features = ["libm"]
 default-features = false
 
-[[bench]]
-name = "ipa_times"
-path = "benches/ipa_times.rs"
-harness = false
-
-[[bench]]
-name = "brakedown_times"
-path = "benches/brakedown_ml_times.rs"
-harness = false
-
-[[bench]]
-name = "ligero_ml_times"
-path = "benches/ligero_ml_times.rs"
-harness = false
-
-[[bench]]
-name = "hyrax_times"
-path = "benches/hyrax_times.rs"
-harness = false
-
-[[bench]]
-name = "size"
-path = "benches/size.rs"
-harness = false
-
 [workspace]
 members = [".", "bench-templates"]
 
