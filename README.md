@@ -7,18 +7,15 @@
 
 ## Changes in this fork
 
-This fork adapts `ark-poly-commit` 0.6.0 so that it builds for bare-metal microcontrollers. It takes the crates.io 0.6.0 source as a single crate, in place of the upstream `poly-commit` and `bench-templates` workspace, and changes it as follows.
+This fork adapts `ark-poly-commit` 0.6.0 so that it builds for bare-metal microcontrollers. It starts from the crates.io 0.6.0 source as the root crate, restores the upstream `bench-templates` crate and benchmarks alongside it, and changes it as follows.
 
-- **Floating-point maths without `std`.** The linear-code schemes (Ligero and Brakedown) call `f64` methods such as `sqrt`, `log2`, `powi` and `ceil`, which `core` does not provide. Upstream enabled the `libm` fallback in `num-traits` only on `aarch64`. This fork enables it on every target and imports `num_traits::Float` in every `no_std` build.
-- **Newer toolchains.** Recent Rust releases provide these float methods natively, so the `num_traits::Float` imports trigger `unused_imports`, which the crate denies. Older `no_std` toolchains still need the trait, so the imports stay, with the lint allowed at each import. Two lifetimes in `sonic_pc` are also written out explicitly (`Powers<'_, E>`).
-- **Supported targets.** Without default features, the library builds for `thumbv7em-none-eabihf` (Arm Cortex-M4F and M7F) and `riscv32imac-unknown-none-elf`. The toolchain is pinned to Rust 1.97.1 in `rust-toolchain.toml`.
-- **Tooling.** The repository gains a `.gitignore`, pre-commit hooks (whitespace, YAML, TOML and `cargo fmt --check`), GitHub Actions for formatting, the host build, doc tests, `no_std` cross-builds and rustdoc, and pull-request checks for secret scanning, title format and labels.
-
-Known limitations:
-
-- The unit tests do not compile, because the crates.io package omits the `ark-pcs-bench-templates` dev-dependency. Only the doc tests run in CI.
-- Clippy is not yet clean on the upstream code, so CI does not run it.
-- The benchmarks are not included.
+- **Floating-point maths without `std`.** The linear-code schemes (Ligero and Brakedown) call `f64` methods such as `sqrt`, `log2`, `powi` and `ceil`, which `core` does not provide on Rust 1.97. Upstream enabled the `libm` fallback in `num-traits` only on `aarch64`. This fork enables it on every target and imports `num_traits::Float` in every `no_std` build.
+- **Supported targets.** Without default features, the library builds for `thumbv7em-none-eabihf` (Arm Cortex-M4F and M7F) and `riscv32imac-unknown-none-elf`. The toolchain is pinned to Rust 1.97.1 in `rust-toolchain.toml`, and `rust-version` is 1.97.
+- **`r1cs` feature.** ark-relations 0.6 renamed its `r1cs` module to `gr1cs`, so the upstream 0.6.0 `r1cs` feature does not compile. This fork imports from `gr1cs`.
+- **Tests and benchmarks.** The crates.io package omits the `ark-pcs-bench-templates` dev-dependency, so its unit tests do not compile. This fork adds `bench-templates` as a workspace member, which restores the 113 unit tests and the five upstream benchmarks. The tests need `std`; the `no_std` build is checked by compiling and linting for both microcontroller targets.
+- **Lint and documentation clean-up.** The code passes `cargo clippy -- -D warnings` for every target and feature set that CI checks, and `cargo doc` with warnings denied. Most changes are mechanical, such as removing `.clone()` on `Copy` types and needless references. Two private helpers gain named types (`PairingCheckAccumulator` in `sonic_pc` and `CombinedOpenings` in `marlin`). Public signatures from the arkworks API are unchanged, and each lint they trigger is allowed on that item alone, with the reason stated. The paper citations in the rustdoc now resolve.
+- **Dependencies.** The unused `merlin` dependency is removed. `cargo deny check advisories` runs in CI. It accepts two unmaintained-crate advisories, `derivative` (required by ark-crypto-primitives 0.6) and `paste` (benchmarks only), neither of which has a known vulnerability.
+- **Tooling.** The repository has a `.gitignore`, pre-commit hooks (whitespace, YAML, TOML and `cargo fmt --check`), and GitHub Actions for formatting, clippy, tests, benchmark builds, `no_std` builds, rustdoc and `cargo deny`. Pull requests are also checked for secrets, title format and labels.
 
 `poly-commit` is a Rust library that implements *polynomial commitment schemes*. This library was initially developed as part of the [Marlin paper][marlin], and is released under the MIT License and the Apache v2 License (see [License](#license)).
 
