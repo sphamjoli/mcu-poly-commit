@@ -1,6 +1,9 @@
 "component: schemes":
   - changed-files:
-    - any-glob-to-any-file: "src/**"
+    - any-glob-to-any-file:
+      - "src/**"
+      - "benches/**"
+      - "bench-templates/**"
 
 "component: no-std":
   - changed-files:
@@ -19,3 +22,4 @@
       - ".github/**"
       - ".pre-commit-config.yaml"
       - ".gitleaks.toml"
+      - "deny.toml"
