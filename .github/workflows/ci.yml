@@ -35,16 +35,35 @@ jobs:
         run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - name: Workspace, default features
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Workspace, without std
+        run: cargo clippy --workspace --all-targets --no-default-features --locked -- -D warnings
 
   test:
-    name: test
+    name: test (${{ matrix.mode }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: std
+            features: --all-features
+          - mode: no_std
+            features: --no-default-features
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: ${{ matrix.mode }}
+      - name: Unit and doc tests
+        run: cargo test --workspace ${{ matrix.features }} --locked
+
+  bench:
+    name: benchmarks compile
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-      - name: Unit and doc tests (all features)
-        run: cargo test --workspace --all-features --locked
-      - name: Benchmarks compile
+      - name: Build benchmarks
         run: cargo bench --workspace --locked --no-run
 
   no-std:
@@ -87,7 +106,7 @@ jobs:
   ci:
     name: CI summary
     if: ${{ always() }}
-    needs: [fmt, clippy, test, no-std, docs, deny]
+    needs: [fmt, clippy, test, bench, no-std, docs, deny]
     runs-on: ubuntu-latest
     steps:
       - name: Write summary
@@ -99,7 +118,8 @@ jobs:
             echo "| ----- | ------ |"
             echo "| rustfmt | ${{ needs.fmt.result }} |"
             echo "| clippy | ${{ needs.clippy.result }} |"
-            echo "| test | ${{ needs.test.result }} |"
+            echo "| test (std, no_std) | ${{ needs.test.result }} |"
+            echo "| benchmarks | ${{ needs.bench.result }} |"
             echo "| no_std | ${{ needs.no-std.result }} |"
             echo "| docs | ${{ needs.docs.result }} |"
             echo "| cargo-deny | ${{ needs.deny.result }} |"
