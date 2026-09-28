@@ -5,6 +5,21 @@
    <a href="https://github.com/arkworks-rs/poly-commit/blob/master/LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
 </p>
 
+## Changes in this fork
+
+This fork adapts `ark-poly-commit` 0.6.0 so that it builds for bare-metal microcontrollers. It takes the crates.io 0.6.0 source as a single crate, in place of the upstream `poly-commit` and `bench-templates` workspace, and changes it as follows.
+
+- **Floating-point maths without `std`.** The linear-code schemes (Ligero and Brakedown) call `f64` methods such as `sqrt`, `log2`, `powi` and `ceil`, which `core` does not provide. Upstream enabled the `libm` fallback in `num-traits` only on `aarch64`. This fork enables it on every target and imports `num_traits::Float` in every `no_std` build.
+- **Newer toolchains.** Recent Rust releases provide these float methods natively, so the `num_traits::Float` imports trigger `unused_imports`, which the crate denies. Older `no_std` toolchains still need the trait, so the imports stay, with the lint allowed at each import. Two lifetimes in `sonic_pc` are also written out explicitly (`Powers<'_, E>`).
+- **Supported targets.** Without default features, the library builds for `thumbv7em-none-eabihf` (Arm Cortex-M4F and M7F) and `riscv32imac-unknown-none-elf`. The toolchain is pinned to Rust 1.97.1 in `rust-toolchain.toml`.
+- **Tooling.** The repository gains a `.gitignore`, pre-commit hooks (whitespace, YAML, TOML and `cargo fmt --check`), GitHub Actions for formatting, the host build, doc tests, `no_std` cross-builds and rustdoc, and pull-request checks for secret scanning, title format and labels.
+
+Known limitations:
+
+- The unit tests do not compile, because the crates.io package omits the `ark-pcs-bench-templates` dev-dependency. Only the doc tests run in CI.
+- Clippy is not yet clean on the upstream code, so CI does not run it.
+- The benchmarks are not included.
+
 `poly-commit` is a Rust library that implements *polynomial commitment schemes*. This library was initially developed as part of the [Marlin paper][marlin], and is released under the MIT License and the Apache v2 License (see [License](#license)).
 
 **WARNING:** This is an academic prototype, and in particular has not received careful code review. This implementation is NOT ready for production use.
