@@ -71,7 +71,7 @@ fn test_hyrax_construction() {
         None,
     );
 
-    let (c, rands) = Hyrax381::commit(&ck, &[l_poly.clone()], Some(chacha)).unwrap();
+    let (c, rands) = Hyrax381::commit(&ck, std::slice::from_ref(&l_poly), Some(chacha)).unwrap();
 
     let point: Vec<Fr> = rand_point(Some(n), chacha);
     let value = l_poly.evaluate(&point);

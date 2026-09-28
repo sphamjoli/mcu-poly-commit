@@ -8,7 +8,7 @@ use ark_r1cs_std::{
     fields::{emulated_fp::EmulatedFpVar, fp::FpVar},
     prelude::*,
 };
-use ark_relations::r1cs::{ConstraintSystemRef, Namespace, Result as R1CSResult, SynthesisError};
+use ark_relations::gr1cs::{ConstraintSystemRef, Namespace, Result as R1CSResult, SynthesisError};
 use ark_std::{
     borrow::Borrow,
     cmp::{Eq, PartialEq},
@@ -163,6 +163,10 @@ pub trait PCCheckVar<
 
     /// Add to `ConstraintSystemRef<ConstraintF>` new constraints that conditionally check that `proof` is a valid evaluation
     /// proof at the points in `query_set` for the combinations `linear_combinations`.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the signature is part of the published arkworks `PCCheckVar` API; changing it would break every caller"
+    )]
     fn prepared_check_combinations(
         cs: ConstraintSystemRef<ConstraintF>,
         prepared_verification_key: &Self::PreparedVerifierKeyVar,

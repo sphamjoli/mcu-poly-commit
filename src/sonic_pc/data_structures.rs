@@ -25,13 +25,13 @@ impl<E: Pairing> PCPreparedCommitment<Commitment<E>> for PreparedCommitment<E> {
     /// prepare `PreparedCommitment` from `Commitment`
     fn prepare(comm: &Commitment<E>) -> Self {
         let mut prepared_comm = Vec::<E::G1Affine>::new();
-        let mut cur = E::G1::from(comm.0.clone());
+        let mut cur = E::G1::from(comm.0);
         for _ in 0..128 {
-            prepared_comm.push(cur.clone().into());
+            prepared_comm.push(cur.into());
             cur.double_in_place();
         }
 
-        Self { 0: prepared_comm }
+        Self(prepared_comm)
     }
 }
 
@@ -167,7 +167,7 @@ impl<E: Pairing> VerifierKey<E> {
             .and_then(|v| {
                 v.binary_search_by(|(d, _)| d.cmp(&degree_bound))
                     .ok()
-                    .map(|i| v[i].1.clone().into())
+                    .map(|i| v[i].1.into())
             })
     }
 }
@@ -235,8 +235,8 @@ impl<E: Pairing> CanonicalDeserialize for VerifierKey<E> {
         let supported_degree = usize::deserialize_with_mode(&mut reader, compress, Validate::No)?;
         let max_degree = usize::deserialize_with_mode(&mut reader, compress, Validate::No)?;
 
-        let prepared_h = E::G2Prepared::from(h.clone());
-        let prepared_beta_h = E::G2Prepared::from(beta_h.clone());
+        let prepared_h = E::G2Prepared::from(h);
+        let prepared_beta_h = E::G2Prepared::from(beta_h);
 
         let result = Self {
             g,

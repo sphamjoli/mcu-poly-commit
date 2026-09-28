@@ -15,9 +15,10 @@ use ark_poly::{MultilinearExtension, Polynomial};
 use ark_std::vec::Vec;
 use ark_std::{log2, marker::PhantomData};
 
+#[cfg(test)]
 mod tests;
 
-/// The multilinear Ligero polynomial commitment scheme based on [[Ligero]][ligero].
+/// The multilinear Ligero polynomial commitment scheme based on [\[Ligero\]][ligero].
 /// The scheme defaults to the naive batching strategy.
 ///
 /// Note: The scheme currently does not support hiding.

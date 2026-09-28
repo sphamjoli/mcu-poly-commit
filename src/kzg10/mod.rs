@@ -89,7 +89,7 @@ where
         let neg_powers_of_h_time = start_timer!(|| "Generating negative powers of h in G2");
         let neg_powers_of_h = if produce_g2_powers {
             let mut neg_powers_of_beta = vec![E::ScalarField::one()];
-            let mut cur = E::ScalarField::one() / &beta;
+            let mut cur = E::ScalarField::one() / beta;
             for _ in 0..max_degree {
                 neg_powers_of_beta.push(cur);
                 cur /= &beta;
@@ -154,6 +154,10 @@ where
     /// assert!(!comm.0.is_zero(), "Commitment should not be zero");
     /// assert!(!r.is_hiding(), "Commitment should not be hiding");
     /// ```
+    #[expect(
+        clippy::type_complexity,
+        reason = "the return type is part of the published arkworks `KZG10` API; changing it would break every caller"
+    )]
     pub fn commit(
         powers: &Powers<E>,
         polynomial: &P,
@@ -194,7 +198,7 @@ where
             end_timer!(sample_random_poly_time);
         }
 
-        let random_ints = convert_to_bigints(&randomness.blinding_polynomial.coeffs());
+        let random_ints = convert_to_bigints(randomness.blinding_polynomial.coeffs());
         let msm_time = start_timer!(|| "MSM to compute commitment to random poly");
         let random_commitment = <E::G1 as VariableBaseMSM>::msm_bigint(
             &powers.powers_of_gamma_g,
@@ -240,7 +244,7 @@ where
     }
 
     /// Yields a [`Proof`] with a witness polynomial.
-    pub fn open_with_witness_polynomial<'a>(
+    pub fn open_with_witness_polynomial(
         powers: &Powers<E>,
         point: P::Point,
         randomness: &Randomness<E::ScalarField, P>,
@@ -264,7 +268,7 @@ where
             let blinding_evaluation = blinding_p.evaluate(&point);
             end_timer!(blinding_eval_time);
 
-            let random_witness_coeffs = convert_to_bigints(&hiding_witness_polynomial.coeffs());
+            let random_witness_coeffs = convert_to_bigints(hiding_witness_polynomial.coeffs());
             let witness_comm_time =
                 start_timer!(|| "Computing commitment to random witness polynomial");
             w += &<E::G1 as VariableBaseMSM>::msm_bigint(
@@ -284,7 +288,7 @@ where
     }
 
     /// On input a polynomial `p` and a `point`, outputs a [`Proof`] for the same.
-    pub fn open<'a>(
+    pub fn open(
         powers: &Powers<E>,
         p: &P,
         point: P::Point,
@@ -319,13 +323,13 @@ where
         proof: &Proof<E>,
     ) -> Result<bool, Error> {
         let check_time = start_timer!(|| "Checking evaluation");
-        let mut inner = comm.0.into_group() - &vk.g.mul(value);
+        let mut inner = comm.0.into_group() - vk.g.mul(value);
         if let Some(random_v) = proof.random_v {
             inner -= &vk.gamma_g.mul(random_v);
         }
         let lhs = E::pairing(inner, vk.h);
 
-        let inner = vk.beta_h.into_group() - &vk.h.mul(point);
+        let inner = vk.beta_h.into_group() - vk.h.mul(point);
         let rhs = E::pairing(proof.w, inner);
 
         end_timer!(check_time, || format!("Result: {}", lhs == rhs));
@@ -361,7 +365,7 @@ where
             let c = temp;
             g_multiplier += &(randomizer * v);
             if let Some(random_v) = proof.random_v {
-                gamma_g_multiplier += &(randomizer * &random_v);
+                gamma_g_multiplier += &(randomizer * random_v);
             }
             total_c += &c.mul(randomizer);
             total_w += &w.mul(randomizer);
@@ -421,11 +425,11 @@ where
         }
     }
 
-    pub(crate) fn check_degrees_and_bounds<'a>(
+    pub(crate) fn check_degrees_and_bounds(
         supported_degree: usize,
         max_degree: usize,
         enforced_degree_bounds: Option<&[usize]>,
-        p: &'a LabeledPolynomial<E::ScalarField, P>,
+        p: &LabeledPolynomial<E::ScalarField, P>,
     ) -> Result<(), Error> {
         if let Some(bound) = p.degree_bound() {
             let enforced_degree_bounds =
@@ -434,12 +438,12 @@ where
             if enforced_degree_bounds.binary_search(&bound).is_err() {
                 Err(Error::UnsupportedDegreeBound(bound))
             } else if bound < p.degree() || bound > max_degree {
-                return Err(Error::IncorrectDegreeBound {
+                Err(Error::IncorrectDegreeBound {
                     poly_degree: p.degree(),
                     degree_bound: p.degree_bound().unwrap(),
                     supported_degree,
                     label: p.label().to_string(),
-                });
+                })
             } else {
                 Ok(())
             }
@@ -491,7 +495,7 @@ mod tests {
         pub(crate) fn trim(
             pp: &UniversalParams<E>,
             mut supported_degree: usize,
-        ) -> Result<(Powers<E>, VerifierKey<E>), Error> {
+        ) -> Result<(Powers<'_, E>, VerifierKey<E>), Error> {
             if supported_degree == 1 {
                 supported_degree += 1;
             }

@@ -12,9 +12,10 @@ use ark_std::marker::PhantomData;
 #[cfg(not(feature = "std"))]
 use ark_std::vec::Vec;
 
+#[cfg(test)]
 mod tests;
 
-/// The univariate Ligero polynomial commitment scheme based on [[Ligero]][ligero].
+/// The univariate Ligero polynomial commitment scheme based on [\[Ligero\]][ligero].
 /// The scheme defaults to the naive batching strategy.
 ///
 /// Note: The scheme currently does not support hiding.

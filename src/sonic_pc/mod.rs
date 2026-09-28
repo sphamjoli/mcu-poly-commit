@@ -16,11 +16,11 @@ use ark_std::{
 mod data_structures;
 pub use data_structures::*;
 
-/// Polynomial commitment based on [[KZG10]][kzg], with degree enforcement and
-/// batching taken from [[MBKM19, “Sonic”]][sonic] (more precisely, their
-/// counterparts in [[Gabizon19, “AuroraLight”]][al] that avoid negative G1 powers).
+/// Polynomial commitment based on [\[KZG10\]][kzg], with degree enforcement and
+/// batching taken from [\[MBKM19, “Sonic”\]][sonic] (more precisely, their
+/// counterparts in [\[Gabizon19, “AuroraLight”\]][al] that avoid negative G1 powers).
 /// The (optional) hiding property of the commitment scheme follows the approach
-/// described in [[CHMMVW20, “Marlin”]][marlin].
+/// described in [\[CHMMVW20, “Marlin”\]][marlin].
 ///
 /// [kzg]: http://cacr.uwaterloo.ca/techreports/2010/cacr2010-10.pdf
 /// [sonic]: https://eprint.iacr.org/2019/099
@@ -31,33 +31,54 @@ pub struct SonicKZG10<E: Pairing, P: DenseUVPolynomial<E::ScalarField>> {
     _poly: PhantomData<P>,
 }
 
-impl<E, P> SonicKZG10<E, P>
-where
-    E: Pairing,
-    P: DenseUVPolynomial<E::ScalarField>,
-{
-    fn accumulate_elems<'a>(
-        combined_comms: &mut BTreeMap<Option<usize>, E::G1>,
-        combined_witness: &mut E::G1,
-        combined_adjusted_witness: &mut E::G1,
-        vk: &VerifierKey<E>,
-        commitments: impl IntoIterator<Item = &'a LabeledCommitment<Commitment<E>>>,
-        point: P::Point,
+/// Running sums for one pairing check that verifies one or more Sonic openings.
+///
+/// The verifier folds each opening into the sums with [`Self::accumulate`], then
+/// runs a single multi-pairing with [`Self::check`].
+struct PairingCheckAccumulator<'a, E: Pairing> {
+    vk: &'a VerifierKey<E>,
+    /// Challenge-weighted commitments, grouped by degree bound.
+    comms: BTreeMap<Option<usize>, E::G1>,
+    witness: E::G1,
+    adjusted_witness: E::G1,
+}
+
+impl<'a, E: Pairing> PairingCheckAccumulator<'a, E> {
+    fn new(vk: &'a VerifierKey<E>) -> Self {
+        Self {
+            vk,
+            comms: BTreeMap::new(),
+            witness: E::G1::zero(),
+            adjusted_witness: E::G1::zero(),
+        }
+    }
+
+    /// Folds the opening of `commitments` at `point` to `values` into the sums.
+    ///
+    /// `randomizer` is `None` for a single check and `Some` when batching, where
+    /// it keeps separate openings from cancelling each other out.
+    fn accumulate<'c>(
+        &mut self,
+        commitments: impl IntoIterator<Item = &'c LabeledCommitment<Commitment<E>>>,
+        point: E::ScalarField,
         values: impl IntoIterator<Item = E::ScalarField>,
         proof: &kzg10::Proof<E>,
         sponge: &mut impl CryptographicSponge,
         randomizer: Option<E::ScalarField>,
-    ) {
+    ) where
+        E: 'c,
+    {
         let acc_time = start_timer!(|| "Accumulating elements");
 
-        let mut curr_challenge = sponge.squeeze_field_elements_with_sizes(&[CHALLENGE_SIZE])[0];
+        let mut curr_challenge: E::ScalarField =
+            sponge.squeeze_field_elements_with_sizes(&[CHALLENGE_SIZE])[0];
 
         // Keeps track of running combination of values
         let mut combined_values = E::ScalarField::zero();
 
         // Iterates through all of the commitments and accumulates common degree_bound elements in a BTreeMap
         for (labeled_comm, value) in commitments.into_iter().zip(values) {
-            combined_values += &(value * &curr_challenge);
+            combined_values += &(value * curr_challenge);
 
             let comm = labeled_comm.commitment();
             let degree_bound = labeled_comm.degree_bound();
@@ -70,15 +91,15 @@ where
             }
 
             // Accumulate values in the BTreeMap
-            *combined_comms.entry(degree_bound).or_insert(E::G1::zero()) += &comm_with_challenge;
+            *self.comms.entry(degree_bound).or_insert(E::G1::zero()) += &comm_with_challenge;
             curr_challenge = sponge.squeeze_field_elements_with_sizes(&[CHALLENGE_SIZE])[0];
         }
 
         // Push expected results into list of elems. Power will be the negative of the expected power
         let mut witness: E::G1 = proof.w.into_group();
-        let mut adjusted_witness = vk.g.mul(combined_values) - &proof.w.mul(point);
+        let mut adjusted_witness = self.vk.g.mul(combined_values) - proof.w.mul(point);
         if let Some(random_v) = proof.random_v {
-            adjusted_witness += &vk.gamma_g.mul(random_v);
+            adjusted_witness += &self.vk.gamma_g.mul(random_v);
         }
 
         if let Some(randomizer) = randomizer {
@@ -86,38 +107,40 @@ where
             adjusted_witness = adjusted_witness.mul(&randomizer);
         }
 
-        *combined_witness += &witness;
-        *combined_adjusted_witness += &adjusted_witness;
+        self.witness += &witness;
+        self.adjusted_witness += &adjusted_witness;
         end_timer!(acc_time);
     }
 
-    fn check_elems(
-        combined_comms: BTreeMap<Option<usize>, E::G1>,
-        combined_witness: E::G1,
-        combined_adjusted_witness: E::G1,
-        vk: &VerifierKey<E>,
-    ) -> Result<bool, Error> {
+    /// Runs the multi-pairing over the accumulated sums.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::UnsupportedDegreeBound`] when a commitment's degree bound
+    /// has no shift power in the verifier key.
+    fn check(self) -> Result<bool, Error> {
         let check_time = start_timer!(|| "Checking elems");
         let mut g1_projective_elems: Vec<E::G1> = Vec::new();
         let mut g2_prepared_elems: Vec<E::G2Prepared> = Vec::new();
 
-        for (degree_bound, comm) in combined_comms.into_iter() {
+        for (degree_bound, comm) in self.comms.into_iter() {
             let shift_power = if let Some(degree_bound) = degree_bound {
-                vk.get_shift_power(degree_bound)
+                self.vk
+                    .get_shift_power(degree_bound)
                     .ok_or(Error::UnsupportedDegreeBound(degree_bound))?
             } else {
-                vk.prepared_h.clone()
+                self.vk.prepared_h.clone()
             };
 
             g1_projective_elems.push(comm);
             g2_prepared_elems.push(shift_power);
         }
 
-        g1_projective_elems.push(-combined_adjusted_witness);
-        g2_prepared_elems.push(vk.prepared_h.clone());
+        g1_projective_elems.push(-self.adjusted_witness);
+        g2_prepared_elems.push(self.vk.prepared_h.clone());
 
-        g1_projective_elems.push(-combined_witness);
-        g2_prepared_elems.push(vk.prepared_beta_h.clone());
+        g1_projective_elems.push(-self.witness);
+        g2_prepared_elems.push(self.vk.prepared_beta_h.clone());
 
         let g1_prepared_elems_iter: Vec<E::G1Prepared> =
             E::G1::normalize_batch(g1_projective_elems.as_slice())
@@ -153,7 +176,7 @@ where
         _: Option<usize>,
         rng: &mut R,
     ) -> Result<Self::UniversalParams, Self::Error> {
-        kzg10::KZG10::<E, P>::setup(max_degree, true, rng).map_err(Into::into)
+        kzg10::KZG10::<E, P>::setup(max_degree, true, rng)
     }
 
     fn trim(
@@ -218,7 +241,7 @@ where
 
                     let degree_bounds_and_neg_powers_of_h = enforced_degree_bounds
                         .iter()
-                        .map(|bound| (*bound, neg_powers_of_h[&(max_degree - *bound)].clone()))
+                        .map(|bound| (*bound, neg_powers_of_h[&(max_degree - *bound)]))
                         .collect();
 
                     end_timer!(neg_powers_of_h_time);
@@ -251,8 +274,8 @@ where
         let h = pp.h;
         let beta_h = pp.beta_h;
         let gamma_g = pp.powers_of_gamma_g[&0];
-        let prepared_h = (&pp.prepared_h).clone();
-        let prepared_beta_h = (&pp.prepared_beta_h).clone();
+        let prepared_h = pp.prepared_h.clone();
+        let prepared_beta_h = pp.prepared_beta_h.clone();
 
         let vk = VerifierKey {
             g,
@@ -291,16 +314,13 @@ where
         let mut randomness: Vec<Self::CommitmentState> = Vec::new();
 
         for labeled_polynomial in polynomials {
-            let enforced_degree_bounds: Option<&[usize]> = ck
-                .enforced_degree_bounds
-                .as_ref()
-                .map(|bounds| bounds.as_slice());
+            let enforced_degree_bounds: Option<&[usize]> = ck.enforced_degree_bounds.as_deref();
 
             kzg10::KZG10::<E, P>::check_degrees_and_bounds(
                 ck.supported_degree(),
                 ck.max_degree,
                 enforced_degree_bounds,
-                &labeled_polynomial,
+                labeled_polynomial,
             )?;
 
             let polynomial: &P = labeled_polynomial.polynomial();
@@ -354,19 +374,17 @@ where
         let mut combined_polynomial = P::zero();
         let mut combined_rand = kzg10::Randomness::empty();
 
-        let mut curr_challenge = sponge.squeeze_field_elements_with_sizes(&[CHALLENGE_SIZE])[0];
+        let mut curr_challenge: E::ScalarField =
+            sponge.squeeze_field_elements_with_sizes(&[CHALLENGE_SIZE])[0];
 
         for (polynomial, state) in labeled_polynomials.into_iter().zip(states) {
-            let enforced_degree_bounds: Option<&[usize]> = ck
-                .enforced_degree_bounds
-                .as_ref()
-                .map(|bounds| bounds.as_slice());
+            let enforced_degree_bounds: Option<&[usize]> = ck.enforced_degree_bounds.as_deref();
 
             kzg10::KZG10::<E, P>::check_degrees_and_bounds(
                 ck.supported_degree(),
                 ck.max_degree,
                 enforced_degree_bounds,
-                &polynomial,
+                polynomial,
             )?;
 
             combined_polynomial += (curr_challenge, polynomial.polynomial());
@@ -394,29 +412,9 @@ where
         Self::Commitment: 'a,
     {
         let check_time = start_timer!(|| "Checking evaluations");
-        let mut combined_comms: BTreeMap<Option<usize>, E::G1> = BTreeMap::new();
-        let mut combined_witness: E::G1 = E::G1::zero();
-        let mut combined_adjusted_witness: E::G1 = E::G1::zero();
-
-        Self::accumulate_elems(
-            &mut combined_comms,
-            &mut combined_witness,
-            &mut combined_adjusted_witness,
-            vk,
-            commitments,
-            *point,
-            values,
-            proof,
-            sponge,
-            None,
-        );
-
-        let res = Self::check_elems(
-            combined_comms,
-            combined_witness,
-            combined_adjusted_witness,
-            vk,
-        );
+        let mut accumulator = PairingCheckAccumulator::new(vk);
+        accumulator.accumulate(commitments, *point, values, proof, sponge, None);
+        let res = accumulator.check();
         end_timer!(check_time);
         res
     }
@@ -447,9 +445,7 @@ where
 
         let mut randomizer = E::ScalarField::one();
 
-        let mut combined_comms: BTreeMap<Option<usize>, E::G1> = BTreeMap::new();
-        let mut combined_witness: E::G1 = E::G1::zero();
-        let mut combined_adjusted_witness: E::G1 = E::G1::zero();
+        let mut accumulator = PairingCheckAccumulator::new(vk);
 
         for ((_point_label, (point, labels)), p) in query_to_labels_map.into_iter().zip(proof) {
             let mut comms_to_combine: Vec<&'_ LabeledCommitment<_>> = Vec::new();
@@ -469,14 +465,10 @@ where
                 values_to_combine.push(*v_i);
             }
 
-            Self::accumulate_elems(
-                &mut combined_comms,
-                &mut combined_witness,
-                &mut combined_adjusted_witness,
-                vk,
-                comms_to_combine.into_iter(),
+            accumulator.accumulate(
+                comms_to_combine,
                 *point,
-                values_to_combine.into_iter(),
+                values_to_combine,
                 p,
                 sponge,
                 Some(randomizer),
@@ -485,12 +477,7 @@ where
             randomizer = u128::rand(rng).into();
         }
 
-        Self::check_elems(
-            combined_comms,
-            combined_witness,
-            combined_adjusted_witness,
-            vk,
-        )
+        accumulator.check()
     }
 
     fn open_combinations<'a>(
@@ -577,7 +564,7 @@ where
             ck,
             lc_polynomials.iter(),
             lc_commitments.iter(),
-            &query_set,
+            query_set,
             sponge,
             lc_states.iter(),
             rng,
@@ -618,7 +605,7 @@ where
 
             for (coeff, label) in lc.iter() {
                 if label.is_one() {
-                    for (&(ref label, _), ref mut eval) in evaluations.iter_mut() {
+                    for ((label, _), ref mut eval) in evaluations.iter_mut() {
                         if label == &lc_label {
                             **eval -= coeff;
                         }
@@ -660,7 +647,7 @@ where
         Self::batch_check(
             vk,
             &lc_commitments,
-            &eqn_query_set,
+            eqn_query_set,
             &evaluations,
             proof,
             sponge,

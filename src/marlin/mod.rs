@@ -13,21 +13,31 @@ use ark_std::{
     vec::Vec,
 };
 
-/// Polynomial commitment scheme from [[KZG10]][kzg] that enforces
+/// Polynomial commitment scheme from [\[KZG10\]][kzg] that enforces
 /// strict degree bounds and (optionally) enables hiding commitments by
-/// following the approach outlined in [[CHMMVW20, "Marlin"]][marlin].
+/// following the approach outlined in [\[CHMMVW20, "Marlin"\]][marlin].
 ///
 /// [kzg]: http://cacr.uwaterloo.ca/techreports/2010/cacr2010-10.pdf
 /// [marlin]: https://eprint.iacr.org/2019/1047
 pub mod marlin_pc;
 
 /// Multivariate polynomial commitment based on the construction in
-/// [[PST13]][pst] with batching and (optional) hiding property inspired
-/// by the univariate scheme in [[CHMMVW20, "Marlin"]][marlin]
+/// [\[PST13\]][pst] with batching and (optional) hiding property inspired
+/// by the univariate scheme in [\[CHMMVW20, "Marlin"\]][marlin]
 ///
 /// [pst]: https://eprint.iacr.org/2011/587.pdf
 /// [marlin]: https://eprint.iacr.org/2019/1047
 pub mod marlin_pst13_pc;
+
+/// Commitments and evaluations combined per query point, ready for a batch check.
+///
+/// The three vectors have equal length; index `i` of each belongs to the same
+/// query point.
+pub(crate) struct CombinedOpenings<E: Pairing, D> {
+    pub(crate) commitments: Vec<kzg10::Commitment<E>>,
+    pub(crate) points: Vec<D>,
+    pub(crate) evaluations: Vec<E::ScalarField>,
+}
 
 /// Common functionalities between `marlin_pc` and `marlin_pst13_pc`
 struct Marlin<E, P, PC>
@@ -69,7 +79,7 @@ where
     }
 
     /// Normalize a list of commitments
-    fn normalize_commitments<'a>(
+    fn normalize_commitments(
         commitments: Vec<(E::G1, Option<E::G1>)>,
     ) -> Vec<marlin_pc::Commitment<E>> {
         let mut comms = Vec::with_capacity(commitments.len());
@@ -86,7 +96,7 @@ where
             }
         }
         let comms = E::G1::normalize_batch(&comms);
-        let s_comms = E::G1::normalize_batch(&mut s_comms);
+        let s_comms = E::G1::normalize_batch(&s_comms);
         comms
             .into_iter()
             .zip(s_comms)
@@ -120,10 +130,11 @@ where
             let commitment = labeled_commitment.commitment();
             assert_eq!(degree_bound.is_some(), commitment.shifted_comm.is_some());
 
-            let challenge_i = sponge.squeeze_field_elements_with_sizes(&[CHALLENGE_SIZE])[0];
+            let challenge_i: E::ScalarField =
+                sponge.squeeze_field_elements_with_sizes(&[CHALLENGE_SIZE])[0];
 
             combined_comm += &commitment.comm.0.mul(challenge_i);
-            combined_value += &(value * &challenge_i);
+            combined_value += &(value * challenge_i);
 
             if let Some(degree_bound) = degree_bound {
                 let challenge_i_1: E::ScalarField =
@@ -136,7 +147,7 @@ where
                     .get_shift_power(degree_bound)
                     .ok_or(Error::UnsupportedDegreeBound(degree_bound))?;
 
-                let mut adjusted_comm = shifted_comm - &shift_power.mul(value);
+                let mut adjusted_comm = shifted_comm - shift_power.mul(value);
 
                 adjusted_comm *= challenge_i_1;
                 combined_comm += &adjusted_comm;
@@ -154,7 +165,7 @@ where
         evaluations: &Evaluations<D, E::ScalarField>,
         sponge: &mut impl CryptographicSponge,
         vk: Option<&marlin_pc::VerifierKey<E>>,
-    ) -> Result<(Vec<kzg10::Commitment<E>>, Vec<D>, Vec<E::ScalarField>), Error>
+    ) -> Result<CombinedOpenings<E, D>, Error>
     where
         marlin_pc::Commitment<E>: 'a,
     {
@@ -212,15 +223,23 @@ where
         let combined_comms_affine = E::G1::normalize_batch(&combined_comms);
         let combined_comms = combined_comms_affine
             .into_iter()
-            .map(|c| kzg10::Commitment(c.into()))
+            .map(|c| kzg10::Commitment(c))
             .collect::<Vec<_>>();
         end_timer!(norm_time);
-        Ok((combined_comms, combined_queries, combined_evals))
+        Ok(CombinedOpenings {
+            commitments: combined_comms,
+            points: combined_queries,
+            evaluations: combined_evals,
+        })
     }
 
     /// On input a list of polynomials, linear combinations of those polynomials,
     /// and a query set, `open_combination` outputs a proof of evaluation of
     /// the combinations at the points in the query set.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "shared body of `PolynomialCommitment::open_combinations` for both Marlin schemes; it takes that fixed signature's arguments unchanged"
+    )]
     fn open_combinations<'a, D>(
         ck: &PC::CommitterKey,
         lc_s: impl IntoIterator<Item = &'a LinearCombination<E::ScalarField>>,
@@ -306,7 +325,7 @@ where
             ck,
             lc_polynomials.iter(),
             lc_commitments.iter(),
-            &query_set,
+            query_set,
             sponge,
             lc_states.iter(),
             rng,
@@ -315,6 +334,10 @@ where
         Ok(BatchLCProof { proof, evals: None })
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "shared body of `PolynomialCommitment::check_combinations` for both Marlin schemes; it takes that fixed signature's arguments unchanged"
+    )]
     fn check_combinations<'a, R, D>(
         vk: &PC::VerifierKey,
         lc_s: impl IntoIterator<Item = &'a LinearCombination<E::ScalarField>>,
@@ -357,7 +380,7 @@ where
 
             for (coeff, label) in lc.iter() {
                 if label.is_one() {
-                    for (&(ref label, _), ref mut eval) in evaluations.iter_mut() {
+                    for ((label, _), ref mut eval) in evaluations.iter_mut() {
                         if label == &lc_label {
                             **eval -= coeff;
                         }
@@ -399,7 +422,7 @@ where
         PC::batch_check(
             vk,
             &lc_commitments,
-            &query_set,
+            query_set,
             &evaluations,
             proof,
             sponge,

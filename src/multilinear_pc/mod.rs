@@ -34,7 +34,7 @@ impl<E: Pairing> MultilinearPC<E> {
         let t: Vec<_> = (0..num_vars).map(|_| E::ScalarField::rand(rng)).collect();
 
         let mut eq: LinkedList<DenseMultilinearExtension<E::ScalarField>> =
-            LinkedList::from_iter(eq_extension(&t).into_iter());
+            LinkedList::from_iter(eq_extension(&t));
         let mut eq_arr = LinkedList::new();
         let mut base = eq.pop_back().unwrap().evaluations;
 
@@ -42,11 +42,7 @@ impl<E: Pairing> MultilinearPC<E> {
             eq_arr.push_front(remove_dummy_variable(&base, i));
             if i != 0 {
                 let mul = eq.pop_back().unwrap().evaluations;
-                base = base
-                    .into_iter()
-                    .zip(mul.into_iter())
-                    .map(|(a, b)| a * &b)
-                    .collect();
+                base = base.into_iter().zip(mul).map(|(a, b)| a * b).collect();
             }
         }
 
@@ -63,8 +59,8 @@ impl<E: Pairing> MultilinearPC<E> {
         let mut start = 0;
         for i in 0..num_vars {
             let size = 1 << (num_vars - i);
-            let pp_k_g = (&pp_g[start..(start + size)]).to_vec();
-            let pp_k_h = (&pp_h[start..(start + size)]).to_vec();
+            let pp_k_g = pp_g[start..(start + size)].to_vec();
+            let pp_k_h = pp_h[start..(start + size)].to_vec();
             powers_of_g.push(pp_k_g);
             powers_of_h.push(pp_k_h);
             start += size;
@@ -95,8 +91,8 @@ impl<E: Pairing> MultilinearPC<E> {
         assert!(supported_num_vars <= params.num_vars);
         let to_reduce = params.num_vars - supported_num_vars;
         let ck = CommitterKey {
-            powers_of_h: (&params.powers_of_h[to_reduce..]).to_vec(),
-            powers_of_g: (&params.powers_of_g[to_reduce..]).to_vec(),
+            powers_of_h: params.powers_of_h[to_reduce..].to_vec(),
+            powers_of_g: params.powers_of_g[to_reduce..].to_vec(),
             g: params.g,
             h: params.h,
             nv: supported_num_vars,
@@ -105,7 +101,7 @@ impl<E: Pairing> MultilinearPC<E> {
             nv: supported_num_vars,
             g: params.g,
             h: params.h,
-            g_mask_random: (&params.g_mask[to_reduce..]).to_vec(),
+            g_mask_random: params.g_mask[to_reduce..].to_vec(),
         };
         (ck, vk)
     }
@@ -141,9 +137,8 @@ impl<E: Pairing> MultilinearPC<E> {
         r[nv] = polynomial.to_evaluations();
 
         let mut proofs = Vec::new();
-        for i in 0..nv {
+        for (i, &point_at_k) in point[..nv].iter().enumerate() {
             let k = nv - i;
-            let point_at_k = point[i];
             q[k] = (0..(1 << (k - 1)))
                 .map(|_| E::ScalarField::zero())
                 .collect();
@@ -151,9 +146,9 @@ impl<E: Pairing> MultilinearPC<E> {
                 .map(|_| E::ScalarField::zero())
                 .collect();
             for b in 0..(1 << (k - 1)) {
-                q[k][b] = r[k][(b << 1) + 1] - &r[k][b << 1];
-                r[k - 1][b] = r[k][b << 1] * &(E::ScalarField::one() - &point_at_k)
-                    + &(r[k][(b << 1) + 1] * &point_at_k);
+                q[k][b] = r[k][(b << 1) + 1] - r[k][b << 1];
+                r[k - 1][b] = r[k][b << 1] * (E::ScalarField::one() - point_at_k)
+                    + r[k][(b << 1) + 1] * point_at_k;
             }
             let scalars: Vec<_> = (0..(1 << k))
                 .map(|x| q[k][x >> 1].into_bigint()) // fine
@@ -169,25 +164,23 @@ impl<E: Pairing> MultilinearPC<E> {
 
     /// Verifies that `value` is the evaluation at `x` of the polynomial
     /// committed inside `comm`.
-    pub fn check<'a>(
+    pub fn check(
         vk: &VerifierKey<E>,
         commitment: &Commitment<E>,
         point: &[E::ScalarField],
         value: E::ScalarField,
         proof: &Proof<E>,
     ) -> bool {
-        let left = E::pairing(commitment.g_product.into_group() - &vk.g.mul(value), vk.h);
+        let left = E::pairing(commitment.g_product.into_group() - vk.g.mul(value), vk.h);
 
         let g_mul = vk.g.into_group().batch_mul(point);
 
         let pairing_lefts: Vec<_> = (0..vk.nv)
-            .map(|i| vk.g_mask_random[i].into_group() - &g_mul[i])
+            .map(|i| vk.g_mask_random[i].into_group() - g_mul[i])
             .collect();
         let pairing_lefts: Vec<E::G1Affine> = E::G1::normalize_batch(&pairing_lefts);
-        let pairing_lefts: Vec<E::G1Prepared> = pairing_lefts
-            .into_iter()
-            .map(|x| E::G1Prepared::from(x))
-            .collect();
+        let pairing_lefts: Vec<E::G1Prepared> =
+            pairing_lefts.into_iter().map(E::G1Prepared::from).collect();
 
         let pairing_rights: Vec<E::G2Prepared> = proof
             .proofs
@@ -219,11 +212,10 @@ fn remove_dummy_variable<F: Field>(poly: &[F], pad: usize) -> Vec<F> {
 fn eq_extension<F: Field>(t: &[F]) -> Vec<DenseMultilinearExtension<F>> {
     let dim = t.len();
     let mut result = Vec::new();
-    for i in 0..dim {
+    for (i, &ti) in t.iter().enumerate() {
         let mut poly = Vec::with_capacity(1 << dim);
         for x in 0..(1 << dim) {
             let xi = if x >> i & 1 == 1 { F::one() } else { F::zero() };
-            let ti = t[i];
             let ti_xi = ti * xi;
             poly.push(ti_xi + ti_xi - xi - ti + F::one());
         }
@@ -254,7 +246,7 @@ mod tests {
     ) {
         let nv = poly.num_vars();
         assert_ne!(nv, 0);
-        let (ck, vk) = MultilinearPC::<E>::trim(&uni_params, nv);
+        let (ck, vk) = MultilinearPC::<E>::trim(uni_params, nv);
         let point: Vec<_> = (0..nv).map(|_| Fr::rand(rng)).collect();
         let com = MultilinearPC::commit(&ck, poly);
         let proof = MultilinearPC::open(&ck, poly, &point);
@@ -308,7 +300,7 @@ mod tests {
         let proof = MultilinearPC::open(&ck, &poly, &point);
 
         let value = poly.evaluate(&point);
-        let result = MultilinearPC::check(&vk, &com, &point, value + &(1u16.into()), &proof);
+        let result = MultilinearPC::check(&vk, &com, &point, value + Fr::from(1u16), &proof);
         assert!(!result);
     }
 }

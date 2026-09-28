@@ -1,7 +1,9 @@
 use crate::{
-    kzg10, marlin::Marlin, BTreeMap, BTreeSet, BatchLCProof, Error, Evaluations, LabeledCommitment,
-    LabeledPolynomial, LinearCombination, PCCommitmentState, PCCommitterKey, PCUniversalParams,
-    PolynomialCommitment, QuerySet, CHALLENGE_SIZE,
+    kzg10,
+    marlin::{CombinedOpenings, Marlin},
+    BTreeMap, BTreeSet, BatchLCProof, Error, Evaluations, LabeledCommitment, LabeledPolynomial,
+    LinearCombination, PCCommitmentState, PCCommitterKey, PCUniversalParams, PolynomialCommitment,
+    QuerySet, CHALLENGE_SIZE,
 };
 use ark_crypto_primitives::sponge::CryptographicSponge;
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
@@ -14,15 +16,15 @@ use ark_std::{string::ToString, vec::Vec};
 mod data_structures;
 pub use data_structures::*;
 
-/// Polynomial commitment based on [[KZG10]][kzg], with degree enforcement, batching,
-/// and (optional) hiding property taken from [[CHMMVW20, “Marlin”]][marlin].
+/// Polynomial commitment based on [\[KZG10\]][kzg], with degree enforcement, batching,
+/// and (optional) hiding property taken from [\[CHMMVW20, “Marlin”\]][marlin].
 ///
 /// Degree bound enforcement requires that (at least one of) the points at
 /// which a committed polynomial is evaluated are from a distribution that is
 /// random conditioned on the polynomial. This is because degree bound
 /// enforcement relies on checking a polynomial identity at this point.
 /// More formally, the points must be sampled from an admissible query sampler,
-/// as detailed in [[CHMMVW20]][marlin].
+/// as detailed in [\[CHMMVW20\]][marlin].
 ///
 /// [kzg]: http://cacr.uwaterloo.ca/techreports/2010/cacr2010-10.pdf
 /// [marlin]: https://eprint.iacr.org/2019/1047
@@ -47,7 +49,7 @@ pub(crate) fn shift_polynomial<E: Pairing, P: DenseUVPolynomial<E::ScalarField>>
 
         let mut shifted_polynomial_coeffs =
             vec![E::ScalarField::zero(); largest_enforced_degree_bound - degree_bound];
-        shifted_polynomial_coeffs.extend_from_slice(&p.coeffs());
+        shifted_polynomial_coeffs.extend_from_slice(p.coeffs());
         P::from_coefficients_vec(shifted_polynomial_coeffs)
     }
 }
@@ -74,7 +76,7 @@ where
         _num_vars: Option<usize>,
         rng: &mut R,
     ) -> Result<Self::UniversalParams, Self::Error> {
-        kzg10::KZG10::setup(max_degree, false, rng).map_err(Into::into)
+        kzg10::KZG10::setup(max_degree, false, rng)
     }
 
     fn trim(
@@ -104,10 +106,10 @@ where
 
         // Construct the core KZG10 verifier key.
         let vk = kzg10::VerifierKey {
-            g: pp.powers_of_g[0].clone(),
+            g: pp.powers_of_g[0],
             gamma_g: pp.powers_of_gamma_g[&0],
-            h: pp.h.clone(),
-            beta_h: pp.beta_h.clone(),
+            h: pp.h,
+            beta_h: pp.beta_h,
             prepared_h: pp.prepared_h.clone(),
             prepared_beta_h: pp.prepared_beta_h.clone(),
         };
@@ -155,7 +157,7 @@ where
             powers,
             shifted_powers,
             powers_of_gamma_g,
-            enforced_degree_bounds: enforced_degree_bounds,
+            enforced_degree_bounds,
             max_degree,
         };
 
@@ -195,15 +197,12 @@ where
             let hiding_bound = p.hiding_bound();
             let polynomial: &P = p.polynomial();
 
-            let enforced_degree_bounds: Option<&[usize]> = ck
-                .enforced_degree_bounds
-                .as_ref()
-                .map(|bounds| bounds.as_slice());
+            let enforced_degree_bounds: Option<&[usize]> = ck.enforced_degree_bounds.as_deref();
             kzg10::KZG10::<E, P>::check_degrees_and_bounds(
                 ck.supported_degree(),
                 ck.max_degree,
                 enforced_degree_bounds,
-                &p,
+                p,
             )?;
 
             let commit_time = start_timer!(|| format!(
@@ -221,7 +220,7 @@ where
                     .shifted_powers(degree_bound)
                     .ok_or(Error::UnsupportedDegreeBound(degree_bound))?;
                 let (shifted_comm, shifted_rand) =
-                    kzg10::KZG10::commit(&shifted_powers, &polynomial, hiding_bound, Some(rng))?;
+                    kzg10::KZG10::commit(&shifted_powers, polynomial, hiding_bound, Some(rng))?;
                 (Some(shifted_comm), Some(shifted_rand))
             } else {
                 (None, None)
@@ -267,15 +266,12 @@ where
             let degree_bound = polynomial.degree_bound();
             assert_eq!(degree_bound.is_some(), rand.shifted_rand.is_some());
 
-            let enforced_degree_bounds: Option<&[usize]> = ck
-                .enforced_degree_bounds
-                .as_ref()
-                .map(|bounds| bounds.as_slice());
+            let enforced_degree_bounds: Option<&[usize]> = ck.enforced_degree_bounds.as_deref();
             kzg10::KZG10::<E, P>::check_degrees_and_bounds(
                 ck.supported_degree(),
                 ck.max_degree,
                 enforced_degree_bounds,
-                &polynomial,
+                polynomial,
             )?;
 
             // compute next challenges challenge^j and challenge^{j+1}.
@@ -293,7 +289,7 @@ where
                     kzg10::KZG10::<E, P>::compute_witness_polynomial(
                         polynomial.polynomial(),
                         *point,
-                        &shifted_rand,
+                        shifted_rand,
                     )?;
                 let challenge_j_1 = sponge.squeeze_field_elements_with_sizes(&[CHALLENGE_SIZE])[0];
 
@@ -325,7 +321,7 @@ where
 
             w += &shifted_proof.w.into_group();
             if let Some(shifted_random_v) = shifted_proof.random_v {
-                random_v = random_v.map(|v| v + &shifted_random_v);
+                random_v = random_v.map(|v| v + shifted_random_v);
             }
         }
 
@@ -375,14 +371,17 @@ where
     where
         Self::Commitment: 'a,
     {
-        let (combined_comms, combined_queries, combined_evals) =
-            Marlin::<E, P, Self>::combine_and_normalize(
-                commitments,
-                query_set,
-                values,
-                sponge,
-                Some(vk),
-            )?;
+        let CombinedOpenings {
+            commitments: combined_comms,
+            points: combined_queries,
+            evaluations: combined_evals,
+        } = Marlin::<E, P, Self>::combine_and_normalize(
+            commitments,
+            query_set,
+            values,
+            sponge,
+            Some(vk),
+        )?;
         assert_eq!(proof.len(), combined_queries.len());
         let proof_time = start_timer!(|| "Checking KZG10::Proof");
         let result = kzg10::KZG10::batch_check(
@@ -390,7 +389,7 @@ where
             &combined_comms,
             &combined_queries,
             &combined_evals,
-            &proof,
+            proof,
             rng,
         )?;
         end_timer!(proof_time);
@@ -471,7 +470,7 @@ where
         let poly_rand_comm: BTreeMap<_, _> = labeled_polynomials
             .into_iter()
             .zip(states)
-            .zip(commitments.into_iter())
+            .zip(commitments)
             .map(|((poly, r), comm)| (poly.label(), (poly, r, comm)))
             .collect();
 
@@ -524,7 +523,7 @@ where
         }
         end_timer!(open_time);
 
-        Ok(proofs.into())
+        Ok(proofs)
     }
 }
 

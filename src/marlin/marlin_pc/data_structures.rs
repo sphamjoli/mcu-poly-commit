@@ -180,29 +180,26 @@ impl<E: Pairing> PCPreparedVerifierKey<VerifierKey<E>> for PreparedVerifierKey<E
 
         let supported_bits = E::ScalarField::MODULUS_BIT_SIZE as usize;
 
-        let prepared_degree_bounds_and_shift_powers: Option<Vec<(usize, Vec<E::G1Affine>)>> =
-            if vk.degree_bounds_and_shift_powers.is_some() {
+        let prepared_degree_bounds_and_shift_powers: Option<Vec<(usize, Vec<E::G1Affine>)>> = vk
+            .degree_bounds_and_shift_powers
+            .as_ref()
+            .map(|degree_bounds_and_shift_powers| {
                 let mut res = Vec::<(usize, Vec<E::G1Affine>)>::new();
-
-                let degree_bounds_and_shift_powers =
-                    vk.degree_bounds_and_shift_powers.as_ref().unwrap();
 
                 for (d, shift_power) in degree_bounds_and_shift_powers {
                     let mut prepared_shift_power = Vec::<E::G1Affine>::new();
 
-                    let mut cur = E::G1::from(shift_power.clone());
+                    let mut cur = E::G1::from(*shift_power);
                     for _ in 0..supported_bits {
-                        prepared_shift_power.push(cur.clone().into());
+                        prepared_shift_power.push(cur.into());
                         cur.double_in_place();
                     }
 
-                    res.push((d.clone(), prepared_shift_power));
+                    res.push((*d, prepared_shift_power));
                 }
 
-                Some(res)
-            } else {
-                None
-            };
+                res
+            });
 
         Self {
             prepared_vk,
@@ -283,7 +280,7 @@ impl<E: Pairing> PCPreparedCommitment<Commitment<E>> for PreparedCommitment<E> {
     fn prepare(comm: &Commitment<E>) -> Self {
         let prepared_comm = kzg10::PreparedCommitment::<E>::prepare(&comm.comm);
 
-        let shifted_comm = comm.shifted_comm.clone();
+        let shifted_comm = comm.shifted_comm;
 
         Self {
             prepared_comm,
@@ -329,7 +326,7 @@ impl<'a, F: PrimeField, P: DenseUVPolynomial<F>> AddAssign<&'a Self> for Randomn
                 .as_ref()
                 .unwrap_or(&kzg10::Randomness::empty());
         } else {
-            self.shifted_rand = other.shifted_rand.as_ref().map(|r| r.clone());
+            self.shifted_rand = other.shifted_rand.clone();
         }
     }
 }

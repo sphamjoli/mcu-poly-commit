@@ -3,9 +3,9 @@
 //! # Background
 //! [[KZG](https://www.iacr.org/archive/asiacrypt2010/6477178/6477178.pdf)]
 //! commitments are pretty simple:
-//! - A [`CommitterKey`](self::CommitterKey) is consists of a sequence \\(\vec G \defeq (G, \tau G, \dots, \tau^DG)\\).
-//! - A [`Commitment`](self::EvaluationProof) is a polynomial \\(f(x)\\) is \\(C \defeq \langle \vec f, \vec G \rangle \\).
-//! - An [`EvaluationProof`](self::EvaluationProof)
+//! - A [`CommitterKey`](crate::streaming_kzg::CommitterKey) is consists of a sequence \\(\vec G \defeq (G, \tau G, \dots, \tau^DG)\\).
+//! - A [`Commitment`](crate::streaming_kzg::Commitment) is a polynomial \\(f(x)\\) is \\(C \defeq \langle \vec f, \vec G \rangle \\).
+//! - An [`EvaluationProof`](crate::streaming_kzg::EvaluationProof)
 //! for the polynomial \\(f\\)
 //! in the evaluation point \\(\alpha\\)
 //! is a commitment to the quotient of \\(f(x)\\) by \\((\tau - \alpha)\\).
@@ -41,7 +41,7 @@
 //! for the commitment polynomials, and a degree bound `max_evals` for
 //! the maximum number of opening points.
 //! From the SRS, it is possible to derive the verification key
-//! [`VerifierKey`](self::VerifierKey).
+//! [`VerifierKey`](crate::streaming_kzg::VerifierKey).
 //!
 //! ```
 //! use ark_poly_commit::streaming_kzg::CommitterKey;
@@ -52,34 +52,19 @@
 //! let max_evals = 10;
 //!
 //! let ck = CommitterKey::<Bls12_381>::new(max_degree, max_evals, rng);
-//! # // XXX. if you change the following lines,
-//! # // please note that documentation below might break.
-//! # let f = vec![Fr::from(1u64), Fr::from(2u64), Fr::from(4u64), Fr::from(8u64)];
-//! # let commitment  = ck.commit(&f);
-//! # let alpha = Fr::from(42u64);
-//! # let (evaluation, proof) = ck.open(&f, &alpha);
-//! # use ark_poly_commit::streaming_kzg::VerifierKey;
-//! # let vk = VerifierKey::from(&ck);
-//! # assert!(vk.verify(&commitment, &alpha, &evaluation, &proof).is_ok())
-//! ```
 //!
-//! Then to commit to a polynomial `f`:
-//! ```ignore
+//! // Commit to the polynomial `f`.
 //! let f = vec![Fr::from(1u64), Fr::from(2u64), Fr::from(4u64), Fr::from(8u64)];
-//! let commitment  = ck.commit(&f);
-//! ```
-//! To prove the evaluation of `f` in a point `alpha`:
+//! let commitment = ck.commit(&f);
 //!
-//! ```ignore
+//! // Prove the evaluation of `f` at the point `alpha`.
 //! let alpha = Fr::from(42u64);
 //! let (evaluation, proof) = ck.open(&f, &alpha);
-//! ```
-//! To veify that an opening is correct:
-//! ```ignore
-//! use gemini::kzg::VerifierKey;
 //!
+//! // Verify the opening.
+//! use ark_poly_commit::streaming_kzg::VerifierKey;
 //! let vk = VerifierKey::from(&ck);
-//! assert!(vk.verify(&commitment, &alpha, &evaluation, &proof).is_ok())
+//! assert!(vk.verify(&commitment, &alpha, &evaluation, &proof).is_ok());
 //! ```
 
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup, VariableBaseMSM};

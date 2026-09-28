@@ -136,9 +136,9 @@ where
     }
 
     /// The commitment procedures, that takes as input a committer key and the streaming coefficients of polynomial, and produces the desired commitment.
-    pub fn commit<SF: ?Sized>(&self, polynomial: &SF) -> Commitment<E>
+    pub fn commit<SF>(&self, polynomial: &SF) -> Commitment<E>
     where
-        SF: Iterable,
+        SF: Iterable + ?Sized,
         SF::Item: Borrow<E::ScalarField>,
     {
         assert!(self.powers_of_g.len() >= polynomial.len());
@@ -149,9 +149,9 @@ where
     }
 
     /// The batch commitment procedures, that takes as input a committer key and the streaming coefficients of a list of polynomials, and produces the desired commitments.
-    pub fn batch_commit<'a, F>(
+    pub fn batch_commit<F>(
         &self,
-        polynomials: &[&'a dyn Iterable<Item = F, Iter = &mut dyn Iterator<Item = F>>],
+        polynomials: &[&dyn Iterable<Item = F, Iter = &mut dyn Iterator<Item = F>>],
     ) -> Vec<Commitment<E>>
     where
         F: Borrow<E::ScalarField>,

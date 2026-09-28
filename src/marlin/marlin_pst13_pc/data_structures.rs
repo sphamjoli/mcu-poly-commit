@@ -121,7 +121,7 @@ where
         let num_vars = usize::deserialize_with_mode(&mut reader, compress, Validate::No)?;
         let max_degree = usize::deserialize_with_mode(&mut reader, compress, Validate::No)?;
 
-        let prepared_beta_h = beta_h.iter().map(|x| x.clone().into()).collect();
+        let prepared_beta_h = beta_h.iter().map(|x| (*x).into()).collect();
         let result = Self {
             powers_of_g,
             gamma_g,
@@ -284,7 +284,7 @@ impl<E: Pairing> CanonicalDeserialize for VerifierKey<E> {
         let supported_degree = usize::deserialize_with_mode(&mut reader, compress, Validate::No)?;
         let max_degree = usize::deserialize_with_mode(&mut reader, compress, Validate::No)?;
 
-        let prepared_beta_h = beta_h.iter().map(|x| x.clone().into()).collect();
+        let prepared_beta_h = beta_h.iter().map(|x| (*x).into()).collect();
         let result = Self {
             g,
             gamma_g,

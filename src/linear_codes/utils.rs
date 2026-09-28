@@ -7,9 +7,6 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::{string::ToString, vec::Vec};
 
 #[cfg(not(feature = "std"))]
-// Newer toolchains resolve these via core float maths; older no_std ones
-// still need the trait, so keep the import and allow the lint here.
-#[allow(unused_imports)]
 use num_traits::Float;
 
 #[cfg(test)]
@@ -21,7 +18,7 @@ use {
 };
 
 /// This is CSC format
-/// https://en.wikipedia.org/wiki/Sparse_matrix#Compressed_sparse_column_(CSC_or_CCS)
+/// <https://en.wikipedia.org/wiki/Sparse_matrix#Compressed_sparse_column_(CSC_or_CCS)>
 #[derive(Derivative, CanonicalSerialize, CanonicalDeserialize)]
 #[derivative(Clone(bound = ""), Debug(bound = ""))]
 pub struct SprsMat<F: Field> {
@@ -203,7 +200,7 @@ impl CRHScheme for LeafIdentityHasher {
         _: &Self::Parameters,
         input: T,
     ) -> Result<Self::Output, ark_crypto_primitives::Error> {
-        Ok(input.borrow().to_vec().into())
+        Ok(input.borrow().to_vec())
     }
 }
 
@@ -322,13 +319,13 @@ pub(crate) mod tests {
             // size of evals might be larger than deg + 1 (the min. number of evals needed to interpolate): we could still do R-S encoding on smaller evals, but the resulting polynomial will differ, so for this test to work we should pass it in full
             let m = deg + 1;
 
-            let encoded = reed_solomon(&coeffs, rho_inv);
+            let encoded = reed_solomon(coeffs, rho_inv);
 
             let large_domain = GeneralEvaluationDomain::<Fr>::new(m * rho_inv).unwrap();
 
             // the encoded elements should agree with the evaluations of the polynomial in the larger domain
-            for j in 0..(rho_inv * m) {
-                assert_eq!(pol.evaluate(&large_domain.element(j)), encoded[j]);
+            for (j, value) in encoded[..rho_inv * m].iter().enumerate() {
+                assert_eq!(pol.evaluate(&large_domain.element(j)), *value);
             }
         }
     }
@@ -339,9 +336,9 @@ pub(crate) mod tests {
         assert_eq!(get_num_bytes(1), 1);
         assert_eq!(get_num_bytes(9), 1);
         assert_eq!(get_num_bytes(1 << 11), 2);
-        assert_eq!(get_num_bytes(1 << 32 - 1), 4);
+        assert_eq!(get_num_bytes(1 << (32 - 1)), 4);
         assert_eq!(get_num_bytes(1 << 32), 5);
-        assert_eq!(get_num_bytes(1 << 32 + 1), 5);
+        assert_eq!(get_num_bytes(1 << (32 + 1)), 5);
     }
 
     #[test]

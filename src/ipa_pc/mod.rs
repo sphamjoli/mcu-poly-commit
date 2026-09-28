@@ -22,14 +22,14 @@ pub use data_structures::*;
 
 /// A polynomial commitment scheme based on the hardness of the
 /// discrete logarithm problem in prime-order groups.
-/// The construction is described in detail in [[BCMS20]][pcdas].
+/// The construction is described in detail in [\[BCMS20\]][pcdas].
 ///
 /// Degree bound enforcement requires that (at least one of) the points at
 /// which a committed polynomial is evaluated are from a distribution that is
 /// random conditioned on the polynomial. This is because degree bound
 /// enforcement relies on checking a polynomial identity at this point.
 /// More formally, the points must be sampled from an admissible query sampler,
-/// as detailed in [[CHMMVW20]][marlin].
+/// as detailed in [\[CHMMVW20\]][marlin].
 ///
 /// [pcdas]: https://eprint.iacr.org/2020/499
 /// [marlin]: https://eprint.iacr.org/2019/1047
@@ -63,9 +63,10 @@ where
 
         let mut comm = <G::Group as VariableBaseMSM>::msm_bigint(comm_key, &scalars_bigint);
 
-        if randomizer.is_some() {
-            assert!(hiding_generator.is_some());
-            comm += &hiding_generator.unwrap().mul(randomizer.unwrap());
+        if let Some(randomizer) = randomizer {
+            let hiding_generator =
+                hiding_generator.expect("a randomizer requires a hiding generator");
+            comm += &hiding_generator.mul(randomizer);
         }
 
         comm
@@ -77,7 +78,7 @@ where
         while challenge.is_none() {
             let mut hash_input = bytes.to_vec();
             hash_input.extend(i.to_le_bytes());
-            let hash = D::digest(&hash_input.as_slice());
+            let hash = D::digest(hash_input.as_slice());
             challenge = <G::ScalarField as Field>::from_random_bytes(&hash);
 
             i += 1;
@@ -114,7 +115,7 @@ where
 
         for (labeled_commitment, value) in labeled_commitments.zip(values) {
             let commitment = labeled_commitment.commitment();
-            combined_v += &(cur_challenge * &value);
+            combined_v += &(cur_challenge * value);
             combined_commitment_proj += &labeled_commitment.commitment().comm.mul(cur_challenge);
             cur_challenge = sponge.squeeze_field_elements_with_sizes(&[CHALLENGE_SIZE])[0];
 
@@ -123,7 +124,7 @@ where
 
             if let Some(degree_bound) = degree_bound {
                 let shift = point.pow([(vk.supported_degree() - degree_bound) as u64]);
-                combined_v += &(cur_challenge * &value * &shift);
+                combined_v += &(cur_challenge * value * shift);
                 combined_commitment_proj += &commitment.shifted_comm.unwrap().mul(cur_challenge);
             }
 
@@ -133,9 +134,7 @@ where
         let mut combined_commitment = combined_commitment_proj.into_affine();
 
         assert_eq!(proof.hiding_comm.is_some(), proof.rand.is_some());
-        if proof.hiding_comm.is_some() {
-            let hiding_comm = proof.hiding_comm.unwrap();
-            let rand = proof.rand.unwrap();
+        if let (Some(hiding_comm), Some(rand)) = (proof.hiding_comm, proof.rand) {
             let mut byte_vec = Vec::new();
             combined_commitment
                 .serialize_uncompressed(&mut byte_vec)
@@ -145,7 +144,7 @@ where
             hiding_comm.serialize_uncompressed(&mut byte_vec).unwrap();
             let bytes = byte_vec.as_slice();
             let hiding_challenge = Self::compute_random_oracle_challenge(bytes);
-            combined_commitment_proj += &(hiding_comm.mul(hiding_challenge) - &vk.s.mul(rand));
+            combined_commitment_proj += &(hiding_comm.mul(hiding_challenge) - vk.s.mul(rand));
             combined_commitment = combined_commitment_proj.into_affine();
         }
 
@@ -162,7 +161,7 @@ where
 
         let h_prime = vk.h.mul(round_challenge);
 
-        let mut round_commitment_proj = combined_commitment_proj + &h_prime.mul(&combined_v);
+        let mut round_commitment_proj = combined_commitment_proj + h_prime.mul(&combined_v);
 
         let l_iter = proof.l_vec.iter();
         let r_iter = proof.r_vec.iter();
@@ -179,21 +178,21 @@ where
             round_challenge = Self::compute_random_oracle_challenge(bytes);
             round_challenges.push(round_challenge);
             round_commitment_proj +=
-                &(l.mul(round_challenge.inverse().unwrap()) + &r.mul(round_challenge));
+                &(l.mul(round_challenge.inverse().unwrap()) + r.mul(round_challenge));
         }
 
         let check_poly = SuccinctCheckPolynomial::<G::ScalarField>(round_challenges);
-        let v_prime = check_poly.evaluate(point) * &proof.c;
+        let v_prime = check_poly.evaluate(point) * proof.c;
         let h_prime = h_prime.into_affine();
 
         let check_commitment_elem: G::Group = Self::cm_commit(
-            &[proof.final_comm_key.clone(), h_prime],
-            &[proof.c.clone(), v_prime],
+            &[proof.final_comm_key, h_prime],
+            &[proof.c, v_prime],
             None,
             None,
         );
 
-        if !(round_commitment_proj - &check_commitment_elem).is_zero() {
+        if !(round_commitment_proj - check_commitment_elem).is_zero() {
             end_timer!(check_time);
             return None;
         }
@@ -233,7 +232,7 @@ where
         } else {
             let mut shifted_polynomial_coeffs =
                 vec![G::ScalarField::zero(); ck.supported_degree() - degree_bound];
-            shifted_polynomial_coeffs.extend_from_slice(&p.coeffs());
+            shifted_polynomial_coeffs.extend_from_slice(p.coeffs());
             P::from_coefficients_vec(shifted_polynomial_coeffs)
         }
     }
@@ -244,8 +243,8 @@ where
         coeff: G::ScalarField,
     ) -> Option<G::ScalarField> {
         if let Some(new_rand) = new_rand {
-            let coeff_new_rand = new_rand * &coeff;
-            return Some(combined_rand.map_or(coeff_new_rand, |r| r + &coeff_new_rand));
+            let coeff_new_rand = new_rand * coeff;
+            return Some(combined_rand.map_or(coeff_new_rand, |r| r + coeff_new_rand));
         };
 
         combined_rand
@@ -258,7 +257,7 @@ where
     ) -> Option<G::Group> {
         if let Some(new_comm) = new_comm {
             let coeff_new_comm = new_comm.mul(coeff);
-            return Some(combined_comm.map_or(coeff_new_comm, |c| c + &coeff_new_comm));
+            return Some(combined_comm.map_or(coeff_new_comm, |c| c + coeff_new_comm));
         };
 
         combined_comm
@@ -272,21 +271,21 @@ where
         let mut commitments = Vec::new();
 
         let mut i = 0;
-        for info in lc_info.into_iter() {
+        for info in lc_info.iter() {
             let commitment;
             let label = info.0.clone();
             let degree_bound = info.1;
 
             if degree_bound.is_some() {
                 commitment = Commitment {
-                    comm: comms[i].clone(),
-                    shifted_comm: Some(comms[i + 1].clone()),
+                    comm: comms[i],
+                    shifted_comm: Some(comms[i + 1]),
                 };
 
                 i += 2;
             } else {
                 commitment = Commitment {
-                    comm: comms[i].clone(),
+                    comm: comms[i],
                     shifted_comm: None,
                 };
 
@@ -296,7 +295,7 @@ where
             commitments.push(LabeledCommitment::new(label, commitment, degree_bound));
         }
 
-        return commitments;
+        commitments
     }
 
     fn sample_generators(num_generators: usize) -> Vec<G> {
@@ -382,15 +381,15 @@ where
 
         let ck = CommitterKey {
             comm_key: pp.comm_key[0..(supported_degree + 1)].to_vec(),
-            h: pp.h.clone(),
-            s: pp.s.clone(),
+            h: pp.h,
+            s: pp.s,
             max_degree: pp.max_degree(),
         };
 
         let vk = VerifierKey {
             comm_key: pp.comm_key[0..(supported_degree + 1)].to_vec(),
-            h: pp.h.clone(),
-            s: pp.s.clone(),
+            h: pp.h,
+            s: pp.s,
             max_degree: pp.max_degree(),
         };
 
@@ -443,7 +442,7 @@ where
 
             let comm = Self::cm_commit(
                 &ck.comm_key[..(polynomial.degree() + 1)],
-                &polynomial.coeffs(),
+                polynomial.coeffs(),
                 Some(ck.s),
                 Some(state.rand),
             )
@@ -452,7 +451,7 @@ where
             let shifted_comm = degree_bound.map(|d| {
                 Self::cm_commit(
                     &ck.comm_key[(ck.supported_degree() - d)..],
-                    &polynomial.coeffs(),
+                    polynomial.coeffs(),
                     Some(ck.s),
                     state.shifted_rand,
                 )
@@ -517,7 +516,7 @@ where
 
             if hiding_bound.is_some() {
                 has_hiding = true;
-                combined_rand += &(cur_challenge * &state.rand);
+                combined_rand += &(cur_challenge * state.rand);
             }
 
             cur_challenge = sponge.squeeze_field_elements_with_sizes(&[CHALLENGE_SIZE])[0];
@@ -549,7 +548,7 @@ where
                         "shifted_rand.is_none() for {}",
                         label
                     );
-                    combined_rand += &(cur_challenge * &shifted_rand.unwrap());
+                    combined_rand += &(cur_challenge * shifted_rand.unwrap());
                 }
             }
 
@@ -600,9 +599,9 @@ where
             let bytes = byte_vec.as_slice();
             let hiding_challenge = Self::compute_random_oracle_challenge(bytes);
             combined_polynomial += (hiding_challenge, &hiding_polynomial);
-            combined_rand += &(hiding_challenge * &hiding_rand);
+            combined_rand += &(hiding_challenge * hiding_rand);
             combined_commitment_proj +=
-                &(hiding_commitment.unwrap().mul(hiding_challenge) - &ck.s.mul(combined_rand));
+                &(hiding_commitment.unwrap().mul(hiding_challenge) - ck.s.mul(combined_rand));
 
             end_timer!(hiding_time);
         }
@@ -669,10 +668,10 @@ where
             let (key_proj_l, _) = key_proj.split_at_mut(n / 2);
 
             let l = Self::cm_commit(key_l, coeffs_r, None, None)
-                + &h_prime.mul(inner_product(coeffs_r, z_l));
+                + h_prime.mul(inner_product(coeffs_r, z_l));
 
             let r = Self::cm_commit(key_r, coeffs_l, None, None)
-                + &h_prime.mul(inner_product(coeffs_l, z_r));
+                + h_prime.mul(inner_product(coeffs_l, z_r));
 
             let lr = G::Group::normalize_batch(&[l, r]);
             l_vec.push(lr[0]);
@@ -690,11 +689,11 @@ where
 
             ark_std::cfg_iter_mut!(coeffs_l)
                 .zip(coeffs_r)
-                .for_each(|(c_l, c_r)| *c_l += &(round_challenge_inv * &*c_r));
+                .for_each(|(c_l, c_r)| *c_l += &(round_challenge_inv * *c_r));
 
             ark_std::cfg_iter_mut!(z_l)
                 .zip(z_r)
-                .for_each(|(z_l, z_r)| *z_l += &(round_challenge * &*z_r));
+                .for_each(|(z_l, z_r)| *z_l += &(round_challenge * *z_r));
 
             ark_std::cfg_iter_mut!(key_proj_l)
                 .zip(key_r)
@@ -764,7 +763,7 @@ where
             None,
             None,
         );
-        if !(final_key - &proof.final_comm_key.into()).is_zero() {
+        if !(final_key - proof.final_comm_key.into()).is_zero() {
             return Ok(false);
         }
 
@@ -821,8 +820,7 @@ where
                 vals.push(*v_i);
             }
 
-            let check_poly =
-                Self::succinct_check(vk, comms.into_iter(), *point, vals.into_iter(), p, sponge);
+            let check_poly = Self::succinct_check(vk, comms, *point, vals, p, sponge);
 
             if check_poly.is_none() {
                 return Ok(false);
@@ -843,7 +841,7 @@ where
             None,
             None,
         );
-        if !(final_key - &combined_final_key).is_zero() {
+        if !(final_key - combined_final_key).is_zero() {
             return Ok(false);
         }
 
@@ -952,7 +950,7 @@ where
             ck,
             lc_polynomials.iter(),
             lc_commitments.iter(),
-            &query_set,
+            query_set,
             sponge,
             lc_states.iter(),
             rng,
@@ -994,7 +992,7 @@ where
 
             for (coeff, label) in lc.iter() {
                 if label.is_one() {
-                    for (&(ref label, _), ref mut eval) in evaluations.iter_mut() {
+                    for ((label, _), ref mut eval) in evaluations.iter_mut() {
                         if label == &lc_label {
                             **eval -= coeff;
                         }
@@ -1039,7 +1037,7 @@ where
         Self::batch_check(
             vk,
             &lc_commitments,
-            &eqn_query_set,
+            eqn_query_set,
             &evaluations,
             proof,
             sponge,
