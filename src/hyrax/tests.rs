@@ -7,6 +7,8 @@ use ark_ed_on_bls12_381::EdwardsAffine;
 use ark_ff::PrimeField;
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension};
 use ark_std::test_rng;
+#[cfg(not(feature = "std"))]
+use ark_std::{string::ToString, vec::Vec};
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 
 // The test structure is largely taken from the multilinear_ligero module
@@ -71,7 +73,8 @@ fn test_hyrax_construction() {
         None,
     );
 
-    let (c, rands) = Hyrax381::commit(&ck, &[l_poly.clone()], Some(chacha)).unwrap();
+    let (c, rands) =
+        Hyrax381::commit(&ck, ark_std::slice::from_ref(&l_poly), Some(chacha)).unwrap();
 
     let point: Vec<Fr> = rand_point(Some(n), chacha);
     let value = l_poly.evaluate(&point);

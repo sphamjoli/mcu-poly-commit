@@ -23,13 +23,13 @@ mod tests;
 mod utils;
 /// String of bytes used to seed the randomness during the setup function.
 /// Note that the latter should never be used in production environments.
-pub const PROTOCOL_NAME: &'static [u8] = b"Hyrax protocol";
+pub const PROTOCOL_NAME: &[u8] = b"Hyrax protocol";
 
 /// Hyrax polynomial committment scheme:
 /// A polynomial commitment scheme based on the hardness of the
 /// discrete logarithm problem in prime-order groups. This is a
 /// Fiat-Shamired version of the PCS described in the Hyrax paper
-/// [[WTsTW17]][hyrax].
+/// [\[WTsTW17\]][hyrax].
 ///
 /// [hyrax]: https://eprint.iacr.org/2017/1132.pdf
 ///
@@ -59,7 +59,6 @@ pub const PROTOCOL_NAME: &'static [u8] = b"Hyrax protocol";
 ///   removes the requirement for the number of variables to be even) and
 ///   introduces a tradeoff between proof size and verifier time. It is
 ///   probably worth pursuing.
-
 pub struct HyraxPC<
     // The elliptic curve used for Pedersen commitments (only EC groups are
     // supported as of now).
@@ -89,7 +88,7 @@ where
             .map(|s| s.into_bigint())
             .collect::<Vec<_>>();
         // Multi-exponentiation in the group of points of the EC
-        <G::Group as VariableBaseMSM>::msm_bigint(&key, &scalars_bigint)
+        <G::Group as VariableBaseMSM>::msm_bigint(key, &scalars_bigint)
     }
 }
 
@@ -135,7 +134,7 @@ where
 
         // Number of rows (or, equivalently, colums) of a square matrix
         // containing the coefficients of an n-variate ML polynomial
-        let dim = 1 << n / 2;
+        let dim = 1 << (n / 2);
 
         // The following block of code is largely taking from the IPA module
         // in this crate. It generates random points (not guaranteed to be
@@ -215,7 +214,7 @@ where
             let poly = l_poly.polynomial();
 
             let n = poly.num_vars();
-            let dim = 1 << n / 2;
+            let dim = 1 << (n / 2);
 
             if n % 2 == 1 {
                 // Only polynomials with an even number of variables are
@@ -264,12 +263,12 @@ where
     ///
     /// Panics if
     /// - `rng` is None, since Hyrax requires randomness in order to
-    /// open the commitment to a polynomial.
+    ///   open the commitment to a polynomial.
     /// - The point doesn't have an even number of variables.
     /// - The labels of a commitment doesn't match that of the corresponding
-    /// polynomial.
+    ///   polynomial.
     /// - The number of variables of a polynomial doesn't match that of the
-    /// point.
+    ///   point.
     fn open<'a>(
         ck: &Self::CommitterKey,
         labeled_polynomials: impl IntoIterator<Item = &'a LabeledPolynomial<G::ScalarField, P>>,
@@ -292,7 +291,7 @@ where
             return Err(Error::InvalidNumberOfVariables);
         }
 
-        let dim = 1 << n / 2;
+        let dim = 1 << (n / 2);
 
         // Reversing the point is necessary because the MLE interface returns
         // evaluations in little-endian order
@@ -312,7 +311,7 @@ where
 
         for (l_poly, (l_com, state)) in labeled_polynomials
             .into_iter()
-            .zip(commitments.into_iter().zip(states.into_iter()))
+            .zip(commitments.into_iter().zip(states))
         {
             let label = l_poly.label();
             if label != l_com.label() {
@@ -411,7 +410,7 @@ where
     /// # Panics
     /// - If the point doesn't have an even number of variables.
     /// - If the length of a commitment does not correspond to the length of the
-    /// point (specifically, commitment length should be 2^(point-length/2)).
+    ///   point (specifically, commitment length should be 2^(point-length/2)).
     ///
     /// # Disregarded arguments
     /// - `rng`
@@ -460,10 +459,10 @@ where
                 z_b,
             } = h_proof;
 
-            if row_coms.len() != 1 << n / 2 {
+            if row_coms.len() != 1 << (n / 2) {
                 return Err(Error::IncorrectCommitmentSize {
                     encountered: row_coms.len(),
-                    expected: 1 << n / 2,
+                    expected: 1 << (n / 2),
                 });
             }
 
@@ -498,7 +497,7 @@ where
             let l_bigint = cfg_iter!(l)
                 .map(|chi| chi.into_bigint())
                 .collect::<Vec<_>>();
-            let t_prime: G = <G::Group as VariableBaseMSM>::msm_bigint(&row_coms, &l_bigint).into();
+            let t_prime: G = <G::Group as VariableBaseMSM>::msm_bigint(row_coms, &l_bigint).into();
 
             // First check from the paper (figure 6, equation (13))
             let com_z_zd = (Self::pedersen_commit(&vk.com_key, z) + vk.h * z_d).into();

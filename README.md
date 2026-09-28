@@ -5,6 +5,19 @@
    <a href="https://github.com/arkworks-rs/poly-commit/blob/master/LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
 </p>
 
+## Changes in this fork
+
+This fork adapts `ark-poly-commit` 0.6.0 so that it builds for bare-metal microcontrollers. It starts from the crates.io 0.6.0 source as the root crate, restores the upstream `bench-templates` crate and benchmarks alongside it, and changes it as follows.
+
+- **Floating-point maths without `std`.** The linear-code schemes (Ligero and Brakedown) call `f64` methods such as `sqrt`, `log2`, `powi` and `ceil`, which `core` does not provide on Rust 1.97. Upstream enabled the `libm` fallback in `num-traits` only on `aarch64`. This fork enables it on every target and imports `num_traits::Float` in every `no_std` build.
+- **Supported targets.** Without default features, the library builds for `thumbv7em-none-eabihf` (Arm Cortex-M4F and M7F) and `riscv32imac-unknown-none-elf`. The toolchain is pinned to Rust 1.97.1 in `rust-toolchain.toml`, and `rust-version` is 1.97.
+- **`r1cs` feature.** ark-relations 0.6 renamed its `r1cs` module to `gr1cs`, so the upstream 0.6.0 `r1cs` feature does not compile. This fork imports from `gr1cs`.
+- **Tests and benchmarks.** The crates.io package omits the `ark-pcs-bench-templates` dev-dependency, so its unit tests do not compile. This fork adds `bench-templates` as a workspace member, which restores the 113 unit tests. The tests run both with and without the `std` feature; upstream's `no_std` test shims were declared after some of the modules that use them, so the Marlin tests did not compile without `std`. The float maths call `num_traits::Float` explicitly, so it resolves the same way whether or not `std` is linked, and the `no_std` test run executes the `libm` backend.
+- **Benchmarks.** The five upstream benchmarks live in `bench-templates/benches` behind its `bench` feature, which is the only part that needs `criterion`. Keeping `criterion` out of the test build stops it enabling `num-traits/std` there. Run them with `cargo bench -p ark-pcs-bench-templates --features bench`.
+- **Lint and documentation clean-up.** The code passes `cargo clippy -- -D warnings` for every target and feature set that CI checks, and `cargo doc` with warnings denied. Most changes are mechanical, such as removing `.clone()` on `Copy` types and needless references. Two private helpers gain named types (`PairingCheckAccumulator` in `sonic_pc` and `CombinedOpenings` in `marlin`). Public signatures from the arkworks API are unchanged, and each lint they trigger is allowed on that item alone, with the reason stated. The paper citations in the rustdoc now resolve.
+- **Dependencies.** The unused `merlin` dependency is removed. `cargo deny check advisories` runs in CI. It accepts two unmaintained-crate advisories, `derivative` (required by ark-crypto-primitives 0.6) and `paste` (benchmarks only), neither of which has a known vulnerability.
+- **Tooling.** The repository has a `.gitignore`, pre-commit hooks (whitespace, YAML, TOML and `cargo fmt --check`), and GitHub Actions for formatting, clippy, tests, benchmark builds, `no_std` builds, rustdoc and `cargo deny`. Pull requests are also checked for secrets, title format and labels.
+
 `poly-commit` is a Rust library that implements *polynomial commitment schemes*. This library was initially developed as part of the [Marlin paper][marlin], and is released under the MIT License and the Apache v2 License (see [License](#license)).
 
 **WARNING:** This is an academic prototype, and in particular has not received careful code review. This implementation is NOT ready for production use.

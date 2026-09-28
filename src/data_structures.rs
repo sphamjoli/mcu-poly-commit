@@ -114,7 +114,7 @@ pub struct LabeledPolynomial<F: Field, P: Polynomial<F>> {
     _field: PhantomData<F>,
 }
 
-impl<'a, F: Field, P: Polynomial<F>> core::ops::Deref for LabeledPolynomial<F, P> {
+impl<F: Field, P: Polynomial<F>> core::ops::Deref for LabeledPolynomial<F, P> {
     type Target = P;
 
     fn deref(&self) -> &Self::Target {
@@ -122,7 +122,7 @@ impl<'a, F: Field, P: Polynomial<F>> core::ops::Deref for LabeledPolynomial<F, P
     }
 }
 
-impl<'a, F: Field, P: Polynomial<F>> LabeledPolynomial<F, P> {
+impl<F: Field, P: Polynomial<F>> LabeledPolynomial<F, P> {
     /// Construct a new labeled polynomial.
     pub fn new(
         label: PolynomialLabel,
@@ -132,7 +132,7 @@ impl<'a, F: Field, P: Polynomial<F>> LabeledPolynomial<F, P> {
     ) -> Self {
         Self {
             label,
-            polynomial: polynomial,
+            polynomial,
             degree_bound,
             hiding_bound,
             _field: PhantomData,
@@ -234,11 +234,7 @@ impl LCTerm {
     /// Returns `true` if `self == LCTerm::One`
     #[inline]
     pub fn is_one(&self) -> bool {
-        if let LCTerm::One = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, LCTerm::One)
     }
 }
 
@@ -248,7 +244,7 @@ impl From<PolynomialLabel> for LCTerm {
     }
 }
 
-impl<'a> From<&'a str> for LCTerm {
+impl From<&str> for LCTerm {
     fn from(other: &str) -> Self {
         Self::PolyLabel(other.into())
     }
@@ -308,7 +304,7 @@ impl<F: Field> LinearCombination<F> {
         let terms = terms.into_iter().map(|(c, t)| (c, t.into())).collect();
         Self {
             label: label.into(),
-            terms: terms,
+            terms,
         }
     }
 

@@ -6,10 +6,8 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 #[cfg(not(feature = "std"))]
 use ark_std::{string::ToString, vec::Vec};
 
-#[cfg(not(feature = "std"))]
-// Newer toolchains resolve these via core float maths; older no_std ones
-// still need the trait, so keep the import and allow the lint here.
-#[allow(unused_imports)]
+// Called as `Float::f(x)` so that the `libm`-backed trait resolves the same
+// way whether or not `std` is linked into the build.
 use num_traits::Float;
 
 #[cfg(test)]
@@ -21,7 +19,7 @@ use {
 };
 
 /// This is CSC format
-/// https://en.wikipedia.org/wiki/Sparse_matrix#Compressed_sparse_column_(CSC_or_CCS)
+/// <https://en.wikipedia.org/wiki/Sparse_matrix#Compressed_sparse_column_(CSC_or_CCS)>
 #[derive(Derivative, CanonicalSerialize, CanonicalDeserialize)]
 #[derivative(Clone(bound = ""), Debug(bound = ""))]
 pub struct SprsMat<F: Field> {
@@ -170,19 +168,19 @@ pub(crate) fn calculate_t<F: PrimeField>(
     let field_bits = F::MODULUS_BIT_SIZE as i32;
     let sec_param = sec_param as i32;
 
-    let residual = codeword_len as f64 / 2.0_f64.powi(field_bits);
-    let rhs = (2.0_f64.powi(-sec_param) - residual).log2();
+    let residual = codeword_len as f64 / Float::powi(2.0_f64, field_bits);
+    let rhs = Float::log2(Float::powi(2.0_f64, -sec_param) - residual);
     if !(rhs.is_normal()) {
         return Err(Error::InvalidParameters("For the given codeword length and the required security guarantee, the field is not big enough.".to_string()));
     }
     let nom = rhs - 1.0;
-    let denom = (1.0 - 0.5 * distance.0 as f64 / distance.1 as f64).log2();
+    let denom = Float::log2(1.0 - 0.5 * distance.0 as f64 / distance.1 as f64);
     if !(denom.is_normal()) {
         return Err(Error::InvalidParameters(
             "The distance is wrong".to_string(),
         ));
     }
-    let t = (nom / denom).ceil() as usize;
+    let t = Float::ceil(nom / denom) as usize;
     Ok(if t < codeword_len { t } else { codeword_len })
 }
 
@@ -203,7 +201,7 @@ impl CRHScheme for LeafIdentityHasher {
         _: &Self::Parameters,
         input: T,
     ) -> Result<Self::Output, ark_crypto_primitives::Error> {
-        Ok(input.borrow().to_vec().into())
+        Ok(input.borrow().to_vec())
     }
 }
 
@@ -272,6 +270,8 @@ pub(crate) mod tests {
         EvaluationDomain, Polynomial,
     };
     use ark_std::test_rng;
+    #[cfg(not(feature = "std"))]
+    use ark_std::vec::Vec;
     use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 
     #[test]
@@ -322,13 +322,13 @@ pub(crate) mod tests {
             // size of evals might be larger than deg + 1 (the min. number of evals needed to interpolate): we could still do R-S encoding on smaller evals, but the resulting polynomial will differ, so for this test to work we should pass it in full
             let m = deg + 1;
 
-            let encoded = reed_solomon(&coeffs, rho_inv);
+            let encoded = reed_solomon(coeffs, rho_inv);
 
             let large_domain = GeneralEvaluationDomain::<Fr>::new(m * rho_inv).unwrap();
 
             // the encoded elements should agree with the evaluations of the polynomial in the larger domain
-            for j in 0..(rho_inv * m) {
-                assert_eq!(pol.evaluate(&large_domain.element(j)), encoded[j]);
+            for (j, value) in encoded[..rho_inv * m].iter().enumerate() {
+                assert_eq!(pol.evaluate(&large_domain.element(j)), *value);
             }
         }
     }
@@ -339,9 +339,9 @@ pub(crate) mod tests {
         assert_eq!(get_num_bytes(1), 1);
         assert_eq!(get_num_bytes(9), 1);
         assert_eq!(get_num_bytes(1 << 11), 2);
-        assert_eq!(get_num_bytes(1 << 32 - 1), 4);
+        assert_eq!(get_num_bytes(1 << (32 - 1)), 4);
         assert_eq!(get_num_bytes(1 << 32), 5);
-        assert_eq!(get_num_bytes(1 << 32 + 1), 5);
+        assert_eq!(get_num_bytes(1 << (32 + 1)), 5);
     }
 
     #[test]

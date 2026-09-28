@@ -9,6 +9,10 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::vec::Vec;
 use ark_std::{marker::PhantomData, rand::RngCore};
 
+/// Dimensions `(rows, columns, non_zeros_per_row)` of one sparse matrix in the
+/// Brakedown encoding.
+pub(crate) type MatrixDims = (usize, usize, usize);
+
 #[derive(Derivative, CanonicalSerialize, CanonicalDeserialize)]
 #[derivative(Clone(bound = ""), Debug(bound = ""))]
 /// The public parameters for Brakedown PCS.
@@ -29,13 +33,10 @@ pub struct BrakedownPCParams<F: PrimeField, C: Config, H: CRHScheme> {
     pub(crate) m: usize,
     /// Length of each row in the matrix that represents the polynomials, **after encoding**
     pub(crate) m_ext: usize,
-    /// Constarints on A matrices. `a_dims[i]` is `(n, m, c)`, where `n` is
-    /// the number of rows, `m` is the number of columns, `c` is the number of
-    /// non-zero elements in each row, for the matrix A in the `i`th step of
-    /// the encoding.
-    pub(crate) a_dims: Vec<(usize, usize, usize)>,
-    /// Same as `a_dims`, but for B matrices.
-    pub(crate) b_dims: Vec<(usize, usize, usize)>,
+    /// Dimensions of the A matrix used in each step of the encoding.
+    pub(crate) a_dims: Vec<MatrixDims>,
+    /// Dimensions of the B matrix used in each step of the encoding.
+    pub(crate) b_dims: Vec<MatrixDims>,
     /// By having `a_dims` and `b_dims`, we compute a vector of indices that
     /// specfies where is the beginning of the sub-chunk that we need to
     /// encode during the recursive encoding. Notice that we do not recurse

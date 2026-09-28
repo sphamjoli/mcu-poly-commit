@@ -9,10 +9,8 @@ use ark_crypto_primitives::{
 };
 use ark_ff::PrimeField;
 use ark_std::{log2, marker::PhantomData};
-#[cfg(not(feature = "std"))]
-// Newer toolchains resolve these via core float maths; older no_std ones
-// still need the trait, so keep the import and allow the lint here.
-#[allow(unused_imports)]
+// Called as `Float::f(x)` so that the `libm`-backed trait resolves the same
+// way whether or not `std` is linked into the build.
 use num_traits::Float;
 
 impl<F, C, H> LigeroPCParams<F, C, H>
@@ -125,7 +123,7 @@ where
             "n cannot be converted to f64: aborting"
         );
         let t = calculate_t::<F>(self.sec_param(), self.distance(), poly_len).unwrap();
-        let n = 1 << log2((ceil_div(2 * poly_len, t) as f64).sqrt().ceil() as usize);
+        let n = 1 << log2(Float::ceil(Float::sqrt(ceil_div(2 * poly_len, t) as f64)) as usize);
         let m = ceil_div(poly_len, n);
         (n, m)
     }

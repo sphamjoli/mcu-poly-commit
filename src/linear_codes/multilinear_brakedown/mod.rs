@@ -12,9 +12,10 @@ use ark_poly::{MultilinearExtension, Polynomial};
 use ark_std::vec::Vec;
 use ark_std::{log2, marker::PhantomData, rand::RngCore};
 
+#[cfg(test)]
 mod tests;
 
-/// The multilinear Brakedown polynomial commitment scheme based on [[Brakedown]][bd].
+/// The multilinear Brakedown polynomial commitment scheme based on [\[Brakedown\]][bd].
 /// The scheme defaults to the naive batching strategy.
 ///
 /// Note: The scheme currently does not support hiding.

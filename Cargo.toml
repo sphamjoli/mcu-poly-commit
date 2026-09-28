@@ -11,6 +11,7 @@
 
 [package]
 edition = "2018"
+rust-version = "1.97"
 name = "ark-poly-commit"
 version = "0.6.0"
 authors = ["arkworks contributors"]
@@ -128,10 +129,6 @@ features = [
 optional = true
 default-features = false
 
-[dependencies.merlin]
-version = "3.0.0"
-default-features = false
-
 [dependencies.rand]
 version = "0.8.0"
 optional = true
@@ -159,6 +156,9 @@ default-features = false
 version = "0.6.0"
 default-features = false
 
+[dev-dependencies.ark-pcs-bench-templates]
+path = "bench-templates"
+
 [dev-dependencies.rand_chacha]
 version = "0.3.0"
 default-features = false
@@ -175,3 +175,12 @@ default-features = false
 version = "0.2"
 features = ["libm"]
 default-features = false
+
+[workspace]
+members = [".", "bench-templates"]
+
+[profile.test]
+opt-level = 3
+debug-assertions = true
+incremental = true
+debug = true

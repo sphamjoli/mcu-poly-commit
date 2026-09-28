@@ -1,5 +1,5 @@
 //! Compute all combinations of values in a given list
-//! Credit: https://github.com/meltinglava/uniquecombinations/
+//! Credit: <https://github.com/meltinglava/uniquecombinations/>
 #[cfg(not(feature = "std"))]
 use ark_std::vec::Vec;
 /// Compute all combinations of values in a given list.
@@ -42,11 +42,11 @@ where
     }
 
     /// Clear the contents of the comb vector and insert the next combination.
-    fn next_combination(&mut self, mut comb: &mut Vec<T>) -> bool {
+    fn next_combination(&mut self, comb: &mut Vec<T>) -> bool {
         if !self.started {
             // first pass throught
             self.started = true;
-            self.insert(&mut comb);
+            self.insert(comb);
             true
         } else {
             let org_len = self.original.len();
@@ -63,7 +63,7 @@ where
                                 for k in 0..i {
                                     self.possition[self.len - i + k] = j + k;
                                 }
-                                self.insert(&mut comb);
+                                self.insert(comb);
                                 return true;
                             }
                         }
@@ -79,7 +79,7 @@ where
                     next = &self.original[i];
                 }
                 self.possition[self.len - 1] = i;
-                self.insert(&mut comb);
+                self.insert(comb);
                 true
             }
         }
@@ -113,11 +113,11 @@ mod tests {
 
     #[test]
     fn t_123() {
-        assert!(
-            dbg!(Combinations::new(vec![1, 2, 3], 2)
+        assert_eq!(
+            Combinations::new(vec![1, 2, 3], 2)
                 .take(10)
-                .collect::<Vec<_>>())
-                == vec![vec![1, 2], vec![1, 3], vec![2, 3]]
+                .collect::<Vec<_>>(),
+            vec![vec![1, 2], vec![1, 3], vec![2, 3]]
         )
     }
 

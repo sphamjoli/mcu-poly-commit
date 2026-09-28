@@ -1,6 +1,6 @@
 use super::utils::SprsMat;
-use super::BrakedownPCParams;
 use super::LinCodeParametersInfo;
+use super::{BrakedownPCParams, MatrixDims};
 use crate::linear_codes::utils::calculate_t;
 use crate::utils::ceil_div;
 use crate::utils::{ceil_mul, ent};
@@ -12,10 +12,8 @@ use ark_ff::PrimeField;
 use ark_std::log2;
 use ark_std::rand::RngCore;
 use ark_std::vec::Vec;
-#[cfg(not(feature = "std"))]
-// Newer toolchains resolve these via core float maths; older no_std ones
-// still need the trait, so keep the import and allow the lint here.
-#[allow(unused_imports)]
+// Called as `Float::f(x)` so that the `libm`-backed trait resolves the same
+// way whether or not `std` is linked into the build.
 use num_traits::Float;
 
 impl<F, C, H> PCUniversalParams for BrakedownPCParams<F, C, H>
@@ -117,7 +115,7 @@ where
         let r = (1521, 1000);
         let base_len = 30;
         let t = calculate_t::<F>(sec_param, (b.0 * r.1, b.1 * r.0), poly_len).unwrap(); // we want to get a rough idea what t is
-        let n = 1 << log2((ceil_div(2 * poly_len, t) as f64).sqrt().ceil() as usize);
+        let n = 1 << log2(Float::ceil(Float::sqrt(ceil_div(2 * poly_len, t) as f64)) as usize);
         let m = ceil_div(poly_len, n);
         let c = Self::cn_const(a, b);
         let d = Self::dn_const(a, b, r);
@@ -146,6 +144,10 @@ where
     }
 
     /// This function creates a UniversalParams. It does not check if the paramters are consistent/correct.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "each argument is an independent Brakedown parameter, and this constructor part of the published arkworks `BrakedownPCParams` API; changing it would break every caller"
+    )]
     pub fn new(
         sec_param: usize,
         a: (usize, usize),
@@ -223,7 +225,7 @@ where
         let b = div(b);
         let arg = 1.28 * b / a;
         let nom = ent(b) + a * ent(arg);
-        let den = -b * arg.log2();
+        let den = -b * Float::log2(arg);
         (nom, den)
     }
     /// cn
@@ -233,7 +235,7 @@ where
         let c = ct.c;
         min(
             max(ceil_mul(n, (32 * b.0, 25 * b.1)), 4 + ceil_mul(n, b)),
-            ((110f64 / (n as f64) + c.0) / c.1).ceil() as usize,
+            Float::ceil((110f64 / (n as f64) + c.0) / c.1) as usize,
         )
     }
     /// dn_const
@@ -245,7 +247,7 @@ where
         let r = div(r);
         let nm = n / m;
         let nom = r * a * ent(b / r) + m * ent(nm);
-        let den = -a * b * nm.log2();
+        let den = -a * b * Float::log2(nm);
         (nom, den)
     }
     /// dn
@@ -256,16 +258,17 @@ where
         let d = ct.d;
         min(
             ceil_mul(n, (2 * b.0, b.1))
-                + ((ceil_mul(n, r) - n + 110) as f64 / F::MODULUS_BIT_SIZE as f64).ceil() as usize, // 2 * beta * n  + n * (r - 1 + 110/n)
-            ((110f64 / (n as f64) + d.0) / d.1).ceil() as usize,
+                + Float::ceil((ceil_mul(n, r) - n + 110) as f64 / F::MODULUS_BIT_SIZE as f64)
+                    as usize, // 2 * beta * n  + n * (r - 1 + 110/n)
+            Float::ceil((110f64 / (n as f64) + d.0) / d.1) as usize,
         )
     }
     fn mat_size(
         mut n: usize,
         base_len: usize,
         ct: &Constants,
-    ) -> (Vec<(usize, usize, usize)>, Vec<(usize, usize, usize)>) {
-        let mut a_dims: Vec<(usize, usize, usize)> = Vec::default();
+    ) -> (Vec<MatrixDims>, Vec<MatrixDims>) {
+        let mut a_dims: Vec<MatrixDims> = Vec::default();
         let a = ct.a;
         let r = ct.r;
 
@@ -292,10 +295,7 @@ where
 
     /// This function computes the codeword length
     /// Notice that it assumes the input is bigger than base_len (i.e., a_dim is not empty)
-    pub(crate) fn codeword_len(
-        a_dims: &[(usize, usize, usize)],
-        b_dims: &[(usize, usize, usize)],
-    ) -> usize {
+    pub(crate) fn codeword_len(a_dims: &[MatrixDims], b_dims: &[MatrixDims]) -> usize {
         b_dims.iter().map(|(_, col, _)| col).sum::<usize>() + // Output v of the recursive encoding
         a_dims.iter().map(|(row, _, _)| row).sum::<usize>() + // Input x to the recursive encoding
         b_dims.last().unwrap().0 // Output z of the last step of recursion
@@ -335,7 +335,7 @@ where
         SprsMat::<F>::new_from_columns(n, m, d, &mat)
     }
 
-    fn make_all<R: RngCore>(rng: &mut R, dims: &[(usize, usize, usize)]) -> Vec<SprsMat<F>> {
+    fn make_all<R: RngCore>(rng: &mut R, dims: &[MatrixDims]) -> Vec<SprsMat<F>> {
         dims.iter()
             .map(|(n, m, d)| Self::make_mat(*n, *m, *d, rng))
             .collect::<Vec<_>>()

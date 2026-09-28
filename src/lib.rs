@@ -6,16 +6,31 @@
 #![deny(unused_attributes, unused_mut)]
 #![deny(missing_docs)]
 #![deny(unused_imports)]
-#![deny(renamed_and_removed_lints, stable_features, unused_allocation)]
+#![deny(renamed_and_removed_lints, unused_allocation)]
 #![deny(unused_comparisons, bare_trait_objects, unused_must_use)]
 #![forbid(unsafe_code)]
 #![doc = include_str!("../README.md")]
 
-#[allow(unused)]
 #[macro_use]
 extern crate derivative;
 #[macro_use]
 extern crate ark_std;
+
+// Without `std` there is no console, so these discard their output. They still
+// type-check the format string and use its arguments. `macro_rules!` is scoped
+// textually, so they must precede every module that calls them.
+#[cfg(not(feature = "std"))]
+macro_rules! eprintln {
+    ($($arg: tt)*) => {
+        let _ = format_args!($($arg)*);
+    };
+}
+#[cfg(all(test, not(feature = "std")))]
+macro_rules! println {
+    ($($arg: tt)*) => {
+        let _ = format_args!($($arg)*);
+    };
+}
 
 use ark_ff::{Field, PrimeField};
 pub use ark_poly::{DenseUVPolynomial, Polynomial};
@@ -52,7 +67,7 @@ pub use error::*;
 
 /// Univariate and multivariate polynomial commitment schemes
 /// which (optionally) enable hiding commitments by following
-/// the approach outlined in [[CHMMVW20, "Marlin"]][marlin].
+/// the approach outlined in [\[CHMMVW20, "Marlin"\]][marlin].
 ///
 /// [marlin]: https://eprint.iacr.org/2019/1047
 pub mod marlin;
@@ -61,34 +76,24 @@ pub mod marlin;
 /// checker.
 pub mod optional_rng;
 
-#[cfg(not(feature = "std"))]
-macro_rules! eprintln {
-    () => {};
-    ($($arg: tt)*) => {};
-}
-#[cfg(all(test, not(feature = "std")))]
-macro_rules! println {
-    () => {};
-    ($($arg: tt)*) => {};
-}
-/// The core [[KZG10]][kzg] construction.
+/// The core [\[KZG10\]][kzg] construction.
 ///
 /// [kzg]: http://cacr.uwaterloo.ca/techreports/2010/cacr2010-10.pdf
 pub mod kzg10;
 
-/// Polynomial commitment scheme from [[KZG10]][kzg] that enforces
+/// Polynomial commitment scheme from [\[KZG10\]][kzg] that enforces
 /// strict degree bounds and (optionally) enables hiding commitments by
-/// following the approach outlined in [[CHMMVW20, "Marlin"]][marlin].
+/// following the approach outlined in [\[CHMMVW20, "Marlin"\]][marlin].
 ///
 /// [kzg]: http://cacr.uwaterloo.ca/techreports/2010/cacr2010-10.pdf
 /// [marlin]: https://eprint.iacr.org/2019/1047
 pub use marlin::marlin_pc;
 
-/// Polynomial commitment scheme based on the construction in [[KZG10]][kzg],
+/// Polynomial commitment scheme based on the construction in [\[KZG10\]][kzg],
 /// modified to obtain batching and to enforce strict
 /// degree bounds by following the approach outlined in [[MBKM19,
 /// “Sonic”]][sonic] (more precisely, via the variant in
-/// [[Gabizon19, “AuroraLight”]][al] that avoids negative G1 powers).
+/// [\[Gabizon19, “AuroraLight”\]][al] that avoids negative G1 powers).
 ///
 /// [kzg]: http://cacr.uwaterloo.ca/techreports/2010/cacr2010-10.pdf
 /// [sonic]: https://eprint.iacr.org/2019/099
@@ -98,37 +103,37 @@ pub mod sonic_pc;
 
 /// A polynomial commitment scheme based on the hardness of the
 /// discrete logarithm problem in prime-order groups.
-/// The construction is detailed in [[BCMS20]][pcdas].
+/// The construction is detailed in [\[BCMS20\]][pcdas].
 ///
 /// [pcdas]: https://eprint.iacr.org/2020/499
 pub mod ipa_pc;
 
 /// A multilinear polynomial commitment scheme that converts n-variate multilinear polynomial into
 /// n quotient UV polynomial. This scheme is based on hardness of the discrete logarithm
-/// in prime-order groups. Construction is detailed in [[XZZPD19]][xzzpd19] and [[ZGKPP18]][zgkpp18]
+/// in prime-order groups. Construction is detailed in [\[XZZPD19\]][xzzpd19] and [\[ZGKPP18\]][zgkpp18]
 ///
 /// [xzzpd19]: https://eprint.iacr.org/2019/317
-/// [zgkpp]: https://ieeexplore.ieee.org/document/8418645
+/// [zgkpp18]: https://ieeexplore.ieee.org/document/8418645
 pub mod multilinear_pc;
 
 use ark_crypto_primitives::sponge::{CryptographicSponge, FieldElementSize};
 /// Multivariate polynomial commitment based on the construction in
-/// [[PST13]][pst] with batching and (optional) hiding property inspired
-/// by the univariate scheme in [[CHMMVW20, "Marlin"]][marlin]
+/// [\[PST13\]][pst] with batching and (optional) hiding property inspired
+/// by the univariate scheme in [\[CHMMVW20, "Marlin"\]][marlin]
 ///
 /// [pst]: https://eprint.iacr.org/2011/587.pdf
 /// [marlin]: https://eprint.iacr.org/2019/1047
 pub use marlin::marlin_pst13_pc;
 
 /// Streaming polynomial commitment based on the construction in
-/// [[BCHO22, "Gemini"]][gemini] with batching techniques inspired
-/// by [[BDFG20]][bdfg].
+/// [\[BCHO22, "Gemini"\]][gemini] with batching techniques inspired
+/// by [\[BDFG20\]][bdfg].
 ///
-/// [gemini]:
+/// [gemini]: https://eprint.iacr.org/2022/420
 /// [bdfg]: https://eprint.iacr.org/2020/081.pdf
 pub mod streaming_kzg;
 
-/// Scheme based on the Ligero construction in [[Ligero]][ligero].
+/// Scheme based on the Ligero construction in [\[Ligero\]][ligero].
 ///
 /// [ligero]: https://eprint.iacr.org/2022/1608
 /// [brakedown]: https://eprint.iacr.org/2021/1043.pdf
@@ -137,7 +142,7 @@ pub mod linear_codes;
 /// A polynomial commitment scheme based on the hardness of the
 /// discrete logarithm problem in prime-order groups. This is a
 /// Fiat-Shamired version of the PCS described in the Hyrax paper
-/// [[WTsTW17]][hyrax], with the difference that, unlike in the
+/// [\[WTsTW17\]][hyrax], with the difference that, unlike in the
 /// cited reference, the evaluation of the polynomial at the point
 /// of interest is indeed revealed to the verifier at the end.
 ///
@@ -215,6 +220,10 @@ pub trait PolynomialCommitment<F: PrimeField, P: Polynomial<F>>: Sized {
     ///
     /// If for some `i`, `polynomials[i].degree_bound().is_some()`, then that
     /// polynomial will have the corresponding degree bound enforced.
+    #[expect(
+        clippy::type_complexity,
+        reason = "the return type is part of the published arkworks `PolynomialCommitment` API; changing it would break every caller"
+    )]
     fn commit<'a>(
         ck: &Self::CommitterKey,
         polynomials: impl IntoIterator<Item = &'a LabeledPolynomial<F, P>>,
@@ -288,7 +297,7 @@ pub trait PolynomialCommitment<F: PrimeField, P: Polynomial<F>>: Sized {
         let poly_st_comm: BTreeMap<_, _> = labeled_polynomials
             .into_iter()
             .zip(states)
-            .zip(commitments.into_iter())
+            .zip(commitments)
             .map(|((poly, st), comm)| (poly.label(), (poly, st, comm)))
             .collect();
 
@@ -342,7 +351,7 @@ pub trait PolynomialCommitment<F: PrimeField, P: Polynomial<F>>: Sized {
                 ck,
                 query_polys,
                 query_comms,
-                &point,
+                point,
                 sponge,
                 query_states,
                 Some(rng),
@@ -434,7 +443,7 @@ pub trait PolynomialCommitment<F: PrimeField, P: Polynomial<F>>: Sized {
 
             // Verify all proofs referring to the current point simultaneously
             // with a single call to `check`
-            result &= Self::check(vk, comms, &point, values, &proof, sponge, Some(rng))?;
+            result &= Self::check(vk, comms, point, values, &proof, sponge, Some(rng))?;
             end_timer!(proof_time);
         }
         Ok(result)
@@ -442,6 +451,10 @@ pub trait PolynomialCommitment<F: PrimeField, P: Polynomial<F>>: Sized {
 
     /// Open commitments to all polynomials involved in a number of linear
     /// combinations (LC) simultaneously.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the signature is part of the published arkworks `PolynomialCommitment` API; changing it would break every caller"
+    )]
     fn open_combinations<'a>(
         ck: &Self::CommitterKey,
         linear_combinations: impl IntoIterator<Item = &'a LinearCombination<F>>,
@@ -486,6 +499,10 @@ pub trait PolynomialCommitment<F: PrimeField, P: Polynomial<F>>: Sized {
 
     /// Verify opening proofs for all polynomials involved in a number of
     /// linear combinations (LC) simultaneously.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the signature is part of the published arkworks `PolynomialCommitment` API; changing it would break every caller"
+    )]
     fn check_combinations<'a, R: RngCore>(
         vk: &Self::VerifierKey,
         linear_combinations: impl IntoIterator<Item = &'a LinearCombination<F>>,
@@ -539,7 +556,7 @@ pub trait PolynomialCommitment<F: PrimeField, P: Polynomial<F>>: Sized {
                     let eval = match label {
                         LCTerm::One => F::one(),
                         LCTerm::PolyLabel(l) => *poly_evals
-                            .get(&(l.clone().into(), point.clone()))
+                            .get(&(l.clone(), point.clone()))
                             .ok_or(Error::MissingEvaluation {
                                 label: format!("{}-{:?}", l.clone(), point.clone()),
                             })?,
@@ -595,7 +612,7 @@ where
         let poly = polys
             .get(label)
             .expect("polynomial in evaluated lc is not found");
-        let eval = poly.evaluate(&point);
+        let eval = poly.evaluate(point);
         evaluations.insert((label.clone(), point.clone()), eval);
     }
     evaluations
@@ -829,7 +846,7 @@ pub mod tests {
 
                 polynomials.push(LabeledPolynomial::new(
                     label,
-                    rand_poly(degree, num_vars, rng).into(),
+                    rand_poly(degree, num_vars, rng),
                     degree_bound,
                     hiding_bound,
                 ))
@@ -846,7 +863,7 @@ pub mod tests {
                 &pp,
                 supported_degree,
                 supported_hiding_bound,
-                degree_bounds.as_ref().map(|s| s.as_slice()),
+                degree_bounds.as_deref(),
             )?;
             println!("Trimmed");
 
@@ -990,7 +1007,7 @@ pub mod tests {
                 &pp,
                 supported_degree,
                 supported_degree,
-                degree_bounds.as_ref().map(|s| s.as_slice()),
+                degree_bounds.as_deref(),
             )?;
             println!("Trimmed");
 

@@ -71,7 +71,7 @@ fn init_stack<F: Field>(n: usize, challenges_len: usize) -> Vec<(usize, F)> {
     // generally we expect the size to be a power of two.
     // If not, we are going to fill the stack as if the array was padded to zero up to the expected size.
     let chunk_size = 1 << challenges_len;
-    if n % chunk_size != 0 {
+    if !n.is_multiple_of(chunk_size) {
         let mut delta = chunk_size - n % chunk_size;
         for i in (0..challenges_len).rev() {
             if delta >= 1 << i {

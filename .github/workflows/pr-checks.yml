@@ -164,12 +164,14 @@ jobs:
         if: always()
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
+          # github-script writes the script's return value to the `result`
+          # output, so return the labels rather than setting `result` directly.
+          result-encoding: string
           script: |
             const { owner, repo } = context.repo;
             const pull_number = context.payload.pull_request.number;
             const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number });
-            const labels = pr.labels.map(l => l.name).join(", ") || "None";
-            core.setOutput("result", labels);
+            return pr.labels.map(l => l.name).join(", ") || "None";
 
   summary:
     name: CI Summary Comment
@@ -177,17 +179,14 @@ jobs:
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
-      issues: write
+      # Comments on a pull request go through the issues API but need the
+      # pull-requests scope.
+      pull-requests: write
     steps:
       - name: Upsert summary comment
-        # GitHub caps the token to read-only, regardless of this job's own
-        # `permissions:` block or the repo's default, for any run where the
-        # workflow FILE ITSELF differs from what's on the base branch (i.e.
-        # exactly this PR, which introduces this file) — a deliberate
-        # anti-privilege-escalation control, not a config mistake. This
-        # write will start succeeding on the very next PR once this file
-        # exists on master; tolerate the expected failure here rather than
-        # block on it.
+        # A pull request from a fork gets a read-only token whatever this job
+        # requests, so the write fails there. The checks above still gate the
+        # pull request; only the comment is lost.
         continue-on-error: true
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         env:

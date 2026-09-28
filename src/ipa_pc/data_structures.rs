@@ -121,7 +121,7 @@ pub type PreparedCommitment<E> = Commitment<E>;
 impl<G: AffineRepr> PCPreparedCommitment<Commitment<G>> for PreparedCommitment<G> {
     /// prepare `PreparedCommitment` from `Commitment`
     fn prepare(vk: &Commitment<G>) -> Self {
-        vk.clone()
+        *vk
     }
 }
 
@@ -229,7 +229,7 @@ impl<F: Field> SuccinctCheckPolynomial<F> {
             let i = i + 1;
             let elem_degree: u64 = (1 << (log_d - i)) as u64;
             let elem = point.pow([elem_degree]);
-            product *= &(F::one() + &(elem * challenge));
+            product *= &(F::one() + (elem * challenge));
         }
 
         product

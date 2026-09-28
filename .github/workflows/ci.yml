@@ -16,11 +16,6 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
 
-# Clippy and the unit tests are not gated yet. The unit tests import
-# ark_pcs_bench_templates, a dev-dependency the crates.io package does not
-# ship, so the test target does not compile. Clippy trips a deny-by-default
-# useless_attribute at src/lib.rs on top of upstream's warning backlog. Add
-# both as jobs once those are fixed.
 jobs:
   fmt:
     name: rustfmt
@@ -30,16 +25,46 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
-  host:
-    name: host (build, doc tests)
+  clippy:
+    name: clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-      - name: Build (default features)
-        run: cargo build --locked
-      - name: Doc tests
-        run: cargo test --locked --doc
+      - name: Workspace, all targets, all features
+        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+      - name: Workspace, default features
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Workspace, without std
+        run: cargo clippy --workspace --all-targets --no-default-features --locked -- -D warnings
+
+  test:
+    name: test (${{ matrix.mode }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: std
+            features: --all-features
+          - mode: no_std
+            features: --no-default-features
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: ${{ matrix.mode }}
+      - name: Unit and doc tests
+        run: cargo test --workspace ${{ matrix.features }} --locked
+
+  bench:
+    name: benchmarks compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - name: Build benchmarks
+        run: cargo bench -p ark-pcs-bench-templates --features bench --locked --no-run
 
   no-std:
     name: no_std (${{ matrix.target }})
@@ -53,24 +78,35 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: ${{ matrix.target }}
-      - name: Cross-build the library without std
-        run: cargo build --locked --lib --no-default-features --target ${{ matrix.target }}
+      - name: Clippy without std
+        run: cargo clippy --locked --lib --no-default-features --target ${{ matrix.target }} -- -D warnings
+      - name: Clippy without std, with r1cs
+        run: cargo clippy --locked --lib --no-default-features --features r1cs --target ${{ matrix.target }} -- -D warnings
 
   docs:
     name: docs
     runs-on: ubuntu-latest
-    # Not run with RUSTDOCFLAGS=-D warnings: upstream carries unresolved
-    # intra-doc links (paper citations such as [KZG10]) that rustdoc warns on.
+    env:
+      RUSTDOCFLAGS: -D warnings
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - name: Build docs
-        run: cargo doc --no-deps --locked
+        run: cargo doc --workspace --all-features --no-deps --locked
+
+  deny:
+    name: cargo-deny (advisories)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          command: check advisories
 
   ci:
     name: CI summary
     if: ${{ always() }}
-    needs: [fmt, host, no-std, docs]
+    needs: [fmt, clippy, test, bench, no-std, docs, deny]
     runs-on: ubuntu-latest
     steps:
       - name: Write summary
@@ -81,9 +117,12 @@ jobs:
             echo "| Check | Result |"
             echo "| ----- | ------ |"
             echo "| rustfmt | ${{ needs.fmt.result }} |"
-            echo "| host | ${{ needs.host.result }} |"
+            echo "| clippy | ${{ needs.clippy.result }} |"
+            echo "| test (std, no_std) | ${{ needs.test.result }} |"
+            echo "| benchmarks | ${{ needs.bench.result }} |"
             echo "| no_std | ${{ needs.no-std.result }} |"
             echo "| docs | ${{ needs.docs.result }} |"
+            echo "| cargo-deny | ${{ needs.deny.result }} |"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Fail if any required check did not pass
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}

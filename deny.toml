@@ -1,0 +1,13 @@
+# cargo-deny policy. Run: cargo deny check
+
+[advisories]
+# Fail on every RustSec advisory except the unmaintained crates below, which
+# have no known vulnerability and no drop-in replacement in the arkworks 0.6
+# dependency tree.
+ignore = [
+  # `derivative` is a dependency of ark-crypto-primitives 0.6, so removing this
+  # crate's own derives would not remove it from the build.
+  { id = "RUSTSEC-2024-0388", reason = "required by ark-crypto-primitives 0.6; no known vulnerability" },
+  # `paste` is used only by the benchmark templates, never by the library.
+  { id = "RUSTSEC-2024-0436", reason = "benchmark-only dependency; no known vulnerability" },
+]

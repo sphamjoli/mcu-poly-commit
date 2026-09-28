@@ -1,6 +1,6 @@
 use crate::{
     kzg10,
-    marlin::{marlin_pc, Marlin},
+    marlin::{marlin_pc, CombinedOpenings, Marlin},
     BatchLCProof, Error, Evaluations, LabeledCommitment, LabeledPolynomial, LinearCombination,
     PCCommitmentState, PCUniversalParams, PolynomialCommitment, QuerySet, CHALLENGE_SIZE,
 };
@@ -24,9 +24,9 @@ pub use data_structures::*;
 mod combinations;
 use combinations::*;
 
-/// Multivariate polynomial commitment based on the construction in [[PST13]][pst]
+/// Multivariate polynomial commitment based on the construction in [\[PST13\]][pst]
 /// with batching and (optional) hiding property inspired by the univariate scheme
-/// in [[CHMMVW20, "Marlin"]][marlin]
+/// in [\[CHMMVW20, "Marlin"\]][marlin]
 ///
 /// [pst]: https://eprint.iacr.org/2011/587
 /// [marlin]: https://eprint.iacr.org/2019/1047
@@ -64,7 +64,7 @@ impl<E: Pairing, P: DenseMVPolynomial<E::ScalarField>> MarlinPST13<E, P> {
                 }
                 // If the current term contains `X_i` then divide appropiately,
                 // otherwise add it to the remainder
-                let mut term_vec = (&*term).to_vec();
+                let mut term_vec = term.to_vec();
                 match term_vec.binary_search_by(|(var, _)| var.cmp(&i)) {
                     Ok(idx) => {
                         // Repeatedly divide the term by `X_i - z_i` until the remainder
@@ -79,7 +79,7 @@ impl<E: Pairing, P: DenseMVPolynomial<E::ScalarField>> MarlinPST13<E, P> {
                         // Since `X_i` is power 1, we can remove it entirely
                         term_vec.remove(idx);
                         quotient_terms.push((coeff, P::Term::new(term_vec.clone())));
-                        remainder_terms.push((point[i] * &coeff, P::Term::new(term_vec)));
+                        remainder_terms.push((point[i] * coeff, P::Term::new(term_vec)));
                     }
                     Err(_) => remainder_terms.push((coeff, term.clone())),
                 }
@@ -117,11 +117,11 @@ impl<E: Pairing, P: DenseMVPolynomial<E::ScalarField>> MarlinPST13<E, P> {
         P: 'a,
     {
         if p.degree() > supported_degree {
-            return Err(Error::PolynomialDegreeTooLarge {
+            Err(Error::PolynomialDegreeTooLarge {
                 poly_degree: p.degree(),
                 supported_degree,
                 label: p.label().to_string(),
-            });
+            })
         } else {
             Ok(())
         }
@@ -239,10 +239,7 @@ where
         let prepared_beta_h = beta_h.iter().map(|bh| (*bh).into()).collect();
 
         // Convert `powers_of_g` to a BTreeMap indexed by `powers_of_beta_terms`
-        let powers_of_g = powers_of_beta_terms
-            .into_iter()
-            .zip(powers_of_g.into_iter())
-            .collect();
+        let powers_of_g = powers_of_beta_terms.into_iter().zip(powers_of_g).collect();
 
         let pp = UniversalParams {
             num_vars,
@@ -284,7 +281,7 @@ where
             .powers_of_g
             .iter()
             .filter(|(k, _)| k.degree() <= supported_degree)
-            .map(|(k, v)| (k.clone(), v.clone()))
+            .map(|(k, v)| (k.clone(), *v))
             .collect();
         let powers_of_gamma_g = pp
             .powers_of_gamma_g
@@ -339,7 +336,7 @@ where
             let label = p.label();
             let hiding_bound = p.hiding_bound();
             let polynomial: &P = p.polynomial();
-            Self::check_degrees_and_bounds(ck.supported_degree, &p)?;
+            Self::check_degrees_and_bounds(ck.supported_degree, p)?;
 
             let commit_time = start_timer!(|| {
                 format!(
@@ -355,7 +352,7 @@ where
                 .collect::<Vec<_>>();
             // Convert coefficients of `polynomial` to BigInts
             let to_bigint_time = start_timer!(|| "Converting polynomial coeffs to bigints");
-            let plain_ints = Self::convert_to_bigints(&polynomial);
+            let plain_ints = Self::convert_to_bigints(polynomial);
             end_timer!(to_bigint_time);
 
             let msm_time = start_timer!(|| "MSM to compute commitment to plaintext poly");
@@ -434,7 +431,7 @@ where
         let mut p = P::zero();
         let mut r = Randomness::empty();
         for (polynomial, state) in labeled_polynomials.into_iter().zip(states) {
-            Self::check_degrees_and_bounds(ck.supported_degree, &polynomial)?;
+            Self::check_degrees_and_bounds(ck.supported_degree, polynomial)?;
 
             // compute challenge^j and challenge^{j+1}.
             let challenge_j = sponge.squeeze_field_elements_with_sizes(&[CHALLENGE_SIZE])[0];
@@ -462,7 +459,7 @@ where
                     .map(|(_, term)| *ck.powers_of_g.get(term).unwrap())
                     .collect::<Vec<_>>();
                 // Convert coefficients to BigInt
-                let witness_ints = Self::convert_to_bigints(&w);
+                let witness_ints = Self::convert_to_bigints(w);
                 // Compute MSM
                 <E::G1 as VariableBaseMSM>::msm_bigint(&powers_of_g, &witness_ints)
             })
@@ -535,7 +532,7 @@ where
                 None,
             )?;
         // Compute both sides of the pairing equation
-        let mut inner = combined_comm.into().into_group() - &vk.g.mul(combined_value);
+        let mut inner = combined_comm.into().into_group() - vk.g.mul(combined_value);
         if let Some(random_v) = proof.random_v {
             inner -= &vk.gamma_g.mul(random_v);
         }
@@ -547,7 +544,7 @@ where
                 .enumerate()
                 .map(|(j, w_j)| {
                     let beta_minus_z: E::G2Affine =
-                        (vk.beta_h[j].into_group() - &vk.h.mul(point[j])).into();
+                        (vk.beta_h[j].into_group() - vk.h.mul(point[j])).into();
                     ((*w_j).into(), beta_minus_z.into())
                 })
                 .unzip();
@@ -569,14 +566,17 @@ where
     where
         Self::Commitment: 'a,
     {
-        let (combined_comms, combined_queries, combined_evals) =
-            Marlin::<E, P, Self>::combine_and_normalize(
-                commitments,
-                query_set,
-                values,
-                sponge,
-                None,
-            )?;
+        let CombinedOpenings {
+            commitments: combined_comms,
+            points: combined_queries,
+            evaluations: combined_evals,
+        } = Marlin::<E, P, Self>::combine_and_normalize(
+            commitments,
+            query_set,
+            values,
+            sponge,
+            None,
+        )?;
         let check_time =
             start_timer!(|| format!("Checking {} evaluation proofs", combined_comms.len()));
         let g = vk.g.into_group();
@@ -602,9 +602,9 @@ where
                 .sum();
             temp += &c.0;
             let c = temp;
-            g_multiplier += &(randomizer * &v);
+            g_multiplier += &(randomizer * v);
             if let Some(random_v) = proof.random_v {
-                gamma_g_multiplier += &(randomizer * &random_v);
+                gamma_g_multiplier += &(randomizer * random_v);
             }
             total_c += &c.mul(&randomizer);
             ark_std::cfg_iter_mut!(total_w)
